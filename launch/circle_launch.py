@@ -7,7 +7,7 @@ from launch_ros.actions import Node
 from launch.conditions import LaunchConfigurationEquals
 from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration, PythonExpression
-
+from icecream import ic
 def parse_yaml(context):
     # Load the crazyflies YAML file
     crazyflies_yaml = LaunchConfiguration('crazyflies_yaml_file').perform(context)
@@ -78,23 +78,23 @@ def parse_yaml(context):
             parameters= server_params,
             prefix=PythonExpression(['"xterm -e gdb -ex run --args" if ', LaunchConfiguration('debug'), ' else ""']),
         ))
-      
     for robot in crazyflies['robots']:
         if crazyflies['robots'][robot]['enabled']:
             Nodes.append(Node(
+                package='crazy_encirclement',
+                executable='crazy_circle',
+                name=robot+'_crazy_circle',
+                output='screen',
+                parameters=[{'robot_prefix': robot}]
+                ))
+            Nodes.append(Node(
                 package='crazyflie',
                 executable='watch_dog.py',
-                name='watch_dog',
+                name=robot+'_watch_dog',
                 output='screen',
                 parameters=[{'robot_prefix': robot}]
             ))
-    #         Nodes.append(Node(
-    #             package='crazy_encirclement',
-    #             executable='crazy_circle',
-    #             name='crazy_circle',
-    #             output='screen',
-    #             parameters=[{'robot_prefix': robot}]
-    #             ))
+
     return Nodes
 
 def generate_launch_description():
@@ -140,29 +140,3 @@ def generate_launch_description():
     ])
 
 
-    # Load the YAML content
-    yaml_content = load_yaml(yaml_file)
-
-    # List to store the dynamically created nodes
-    nodes = []
-
-    # Create a node for each robot
-    for robot in yaml_content['robots']:
-        robot_name = robot['name']
-
-        # Example node for each robot, modify according to your actual node
-        node = Node(
-            package='your_robot_package',  # The package containing your robot node
-            executable='robot_node',  # The executable for your robot node
-            name=robot_name,  # Dynamically name the node
-            output='screen',
-            parameters=[{
-                'robot_name': robot_name,  # Pass the robot name as a parameter if needed
-            }]
-        )
-
-        # Add the node to the list
-        nodes.append(node)
-
-    # Return the LaunchDescription with all the nodes
-    return LaunchDescription(nodes)
