@@ -2,14 +2,17 @@ import numpy as np
 from scipy.spatial.transform import Rotation as R
 import quaternion
 import math
+from utils2 import R3_so3
+from scipy.linalg import expm
 
 class Embedding():
-    def __init__(self,r,phi_dot,k_phi,tactic,n_agents):
+    def __init__(self,r,phi_dot,k_phi,tactic,n_agents,dt):
         self.phi_dot = phi_dot
         self.r = r
         self.k_phi = k_phi
         self.tactic = tactic
         self.n = n_agents
+        self.dt = dt
 
        
     def targets(self,agent_r, phi_prev):
@@ -53,7 +56,8 @@ class Embedding():
 
             wd = self.phi_dot_desired(phi_i, phi_j, phi_k, self.phi_dot, self.k_phi)
             v_d_hat = np.array([0, 0, -wd])
-            Rot = self.tactic_parameters(phi_i)
+            #Rot = self.tactic_parameters(phi_i)
+            Rot = Rot@expm(R3_so3(v_d_hat.reshape(-1,1))*self.dt)
             v_d = Rot@v_d_hat.T
             #v_x, v_y, v_z = v_d.parts[1:]
             v = np.cross(v_d.T, agent_r[:, i])

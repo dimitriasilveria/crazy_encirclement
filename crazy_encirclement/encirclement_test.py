@@ -6,7 +6,7 @@ import math
 from scipy.spatial.transform import Rotation as R
 from utils import generate_reference
 
-N = 4000
+N = 8000
 r = 0.5
 k_phi = 5
 kx = 10
@@ -37,7 +37,7 @@ agents_r[:, 1, 0] = np.array([-0.5,-0.05,0]).T
 #agents_r[:, 2, 0] = np.array([0.36,0.17 ,0]).T
 
 
-embedding = Embedding(r, phi_dot,k_phi, 'circle',n_agents)
+embedding = Embedding(r, phi_dot,k_phi, 'dumbbell',n_agents,dt)
 
 
 for i in range(10):

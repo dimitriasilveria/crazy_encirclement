@@ -3,7 +3,7 @@ from scipy.spatial.transform import Rotation as R
 from scipy.linalg import logm
 
 D = np.zeros((3,3))
-mb= 1
+mb= 0.042
 g = 9.81
 I3 = np.array([0,0,1]).T
 w_r = 0 #reference yaw
@@ -38,11 +38,7 @@ def generate_reference(va_r_dot,Ca_r,va_r,dt):
         Ca_r_new[:,:,i] = np.hstack((r1, r2, r3))
         if np.linalg.det(Ca_r[:,:,i]) != 0:
             Wr_r[:,i] = so3_R3(np.linalg.inv(Ca_r[:,:,i])@Ca_r_new[:,:,i])/dt
-        
-        print(Ca_r_new[:,:,i])
-        print(Wr_r[:,i])
 
-        mb = 0.1
         fa_r = mb*va_r_dot[:,i] +mb*g*I3 + Ca_r[:,:,i]@D@Ca_r[:,:,i].T@va_r[:,i]
         f_T_r[i] = I3.T@Ca_r[:,:,i].T@fa_r.T
         if np.linalg.norm(fa_r) != 0:
@@ -60,10 +56,7 @@ def generate_reference(va_r_dot,Ca_r,va_r,dt):
         Ca_r_new[:,:,i] = np.hstack((r1, r2, r3))
         if np.linalg.det(Ca_r[:,:,i]) != 0:
             Wr_r[:,i] = so3_R3(np.linalg.inv(Ca_r[:,:,i])@Ca_r_new[:,:,i])/dt
-        print('new, mb = 0.1')
-        print(Ca_r_new[:,:,i])
-        print(Wr_r[:,i])
-        input("Press Enter to continue...")
+        
         angles[:,i] = R.from_matrix(Ca_r_new[:,:,i]).as_euler('zyx', degrees=False)
         quaternion[:,i] = R.from_matrix(Ca_r_new[:,:,i]).as_quat()
         
