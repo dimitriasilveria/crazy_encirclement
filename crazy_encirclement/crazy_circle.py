@@ -11,22 +11,31 @@ from std_msgs.msg import Bool
 from crazy_encirclement.utils2 import generate_reference
 
 from crazyflie_interfaces.msg import FullState
-
+from motion_capture_tracking_interfaces.msg import NamedPoseArray
+#the reference angular velocity is in degrees
 import time
 import numpy as np
 from crazy_encirclement.set_parameter_client import SetParameterClient
 
 class Circle(Node):
     def __init__(self):
-        super().__init__('encirclement')
-        self.declare_parameter('robot_prefix', 'C110')  
+        super().__init__('circle_trajectory_node')
+        self.declare_parameter('robot_prefix', 'C103')  
 
         self.robot = self.get_parameter('robot_prefix').value
         #clients
         self.notify_client = self.create_client(NotifySetpointsStop, '/'+self.robot+'/notify_setpoints_stop')  
         self.reboot_client = self.create_client(Empty,  '/'+self.robot+'/reboot')
+        qos_profile = QoSProfile(reliability =QoSReliabilityPolicy.BEST_EFFORT,
+            history=QoSHistoryPolicy.KEEP_LAST,
+            depth=1,
+            deadline=Duration(seconds=0, nanoseconds=0))
+            #deadline = Duration(seconds=0, nanoseconds=1e9/100.0))
 
-        self.create_subscription(PoseStamped, '/'+self.robot+'/pose', self._pose_callback, 10)
+        self.create_subscription(
+            NamedPoseArray, "/poses",
+            self._pose_callback, qos_profile
+        )
         self.subscription = self.create_subscription(
             Bool,
             'landing',
@@ -35,7 +44,6 @@ class Circle(Node):
         self.publisher_pose = self.create_publisher(Pose, self.robot + '/cmd_position', 10)
         self.full_state_publisher = self.create_publisher(FullState,'/'+ self.robot + '/cmd_full_state', 10)
 
-        self.set_parameter_client = SetParameterClient()
         self.has_taken_off = False
         self.has_landed = False
         self.has_hovered = False
@@ -46,7 +54,7 @@ class Circle(Node):
         self.initial_pose = None
         self.final_pose = None
         self.timer_period = 0.01
-        self.Tp = 90
+        self.Tp = 60
         self.dt = self.timer_period
         self.t = np.arange(0,self.Tp,self.dt)
         self.N = len(self.t)
@@ -64,7 +72,7 @@ class Circle(Node):
         self.r = np.sqrt(x**2 + y**2)
         phase = np.arctan2(y,x)
         #center = np.array([np.sign(x)*(np.abs(x)-self.r),np.sign(y)*(np.abs(y)-self.r)])
-        self.hover_height = 0.4
+        self.hover_height = 0.3
        
         
         #generating the cicle trajectory
@@ -98,21 +106,21 @@ class Circle(Node):
         for i in range(7):            
             _, _, _,_, Ca_r_new = generate_reference(self.va_r_dot[:,0],self.Ca_r[:,:,0],self.va_r[:,0],self.dt)
             self.Ca_r[:,:,0] = Ca_r_new
-        
-        input("Press Enter to takeoff")
+        self.get_logger().info(f"Initial pose: {self.initial_pose.position.x}, {self.initial_pose.position.y}, {self.initial_pose.position.z}")
+        #input("Press Enter to takeoff")
         
         self.timer = self.create_timer(self.timer_period, self.timer_callback)
 
     def _landing_callback(self, msg):
         self.land_flag = msg.data
 
-    def _pose_callback(self, pose):
-        if self.initial_pose is None:
-            self.get_logger().info('Initial pose received')
-            self.initial_pose = pose.pose
-
-
-        self.pose = pose.pose
+    def _pose_callback(self, msg):
+        for pose in msg.poses:
+            if pose.name == self.robot:
+                if self.initial_pose is None:
+                    self.get_logger().info('Initial pose received')
+                    self.initial_pose = pose.pose
+                    self.pose = pose.pose
 
     def takeoff(self):
 
@@ -140,6 +148,7 @@ class Circle(Node):
 
         try:
             if self.land_flag or (self.i > len(self.t)-2):
+                self.get_logger().info('Landing')
                 if self.final_pose is None:
                     self.final_pose = self.pose
                     self.r_landing[0,:] += self.final_pose.position.x
@@ -153,6 +162,7 @@ class Circle(Node):
                     self.has_landed = True
                     self.has_taken_off = False
                     self.has_hovered = False
+                    self.reboot()
                     self.destroy_node()
                     self.get_logger().info('Exiting circle node')
 
@@ -163,11 +173,11 @@ class Circle(Node):
                 self.hover()   
                 if ((time.time()-self.t_init) > 5):
                     self.has_hovered = True
-
+                    self.get_logger().info('Hovering finished')
 
             elif not self.has_landed:# and self.pose.position.z > 0.10:#self.ra_r[:,0]:
                 Wr_r_new, _, _, quat_new, Ca_r_new = generate_reference(self.va_r_dot[:,self.i],self.Ca_r[:,:,self.i],self.va_r[:,self.i],self.dt)
-                self.Ca_r[:,:,self.i] = Ca_r_new
+                self.Ca_r[:,:,self.i+1] = Ca_r_new
                 self.next_point(self.ra_r[:,self.i],self.va_r[:,self.i],self.va_r_dot[:,self.i],Wr_r_new,quat_new,self.Ca_r[:,:,self.i])
                 
                 if self.i <= len(self.t)-2:
@@ -201,9 +211,9 @@ class Circle(Node):
         msg.twist.linear.x = float(v[0])
         msg.twist.linear.y = float(v[1])
         msg.twist.linear.z = float(v[2])
-        msg.twist.angular.x = float(Wr_r_new[0])
-        msg.twist.angular.y = float(Wr_r_new[1])
-        msg.twist.angular.z = float(Wr_r_new[2])
+        msg.twist.angular.x = np.rad2deg(float(Wr_r_new[0]))
+        msg.twist.angular.y = np.rad2deg(float(Wr_r_new[1]))
+        msg.twist.angular.z = np.rad2deg(float(Wr_r_new[2]))
         #self.get_logger().info(f"Publishing to {msg.pose.position.x}, {msg.pose.position.y}, {msg.pose.position.z}")
         self.full_state_publisher.publish(msg)
 
