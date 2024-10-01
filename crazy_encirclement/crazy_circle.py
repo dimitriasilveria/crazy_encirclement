@@ -108,6 +108,7 @@ class Circle(Node):
             self.Ca_r[:,:,0] = Ca_r_new
         self.get_logger().info(f"Initial pose: {self.initial_pose.position.x}, {self.initial_pose.position.y}, {self.initial_pose.position.z}")
         #input("Press Enter to takeoff")
+        time.sleep(3.0)
         
         self.timer = self.create_timer(self.timer_period, self.timer_callback)
 
@@ -148,7 +149,6 @@ class Circle(Node):
 
         try:
             if self.land_flag or (self.i > len(self.t)-2):
-                self.get_logger().info('Landing')
                 if self.final_pose is None:
                     self.final_pose = self.pose
                     self.r_landing[0,:] += self.final_pose.position.x
@@ -193,7 +193,6 @@ class Circle(Node):
 
     
     def landing(self):
-        self.get_logger().info(f"Landing at {self.r_landing[:,self.i_landing]}")
         self.next_point(self.r_landing[:,self.i_landing],self.r_dot_landing[:,self.i_landing])
 
     def next_point(self,r,v,v_dot=np.zeros(3),Wr_r_new=np.zeros(3),quat_new=np.array([0,0,0,1]),Ca_r_new=np.eye(3)):

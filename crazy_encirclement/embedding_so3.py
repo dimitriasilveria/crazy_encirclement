@@ -85,6 +85,7 @@ class Embedding():
                 k += 1
             
         return phi_cur, target_r, target_v, pos_circle, phi_diff, distances
+    
 
     def phi_dot_desired(self,phi_i, phi_j, phi_k, phi_dot_des, k):
         phi_ki = np.mod(phi_i - phi_k, 2*np.pi)

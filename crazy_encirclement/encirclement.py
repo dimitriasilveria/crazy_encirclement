@@ -12,6 +12,7 @@ from crazy_encirclement.utils import generate_reference
 
 import time
 import numpy as np
+from scipy.spatial.transform import Rotation as R
 
 class Encirclement(Node):
     def __init__(self):
@@ -29,13 +30,16 @@ class Encirclement(Node):
         self.k_phi  = float(self.get_parameter('k_phi').value)
         self.phi_dot  = float(self.get_parameter('phi_dot').value)
         self.tactic  = self.get_parameter('tactic').value
+        self.order = None
+        self.initial_pose = {}
+        self.initial_phase = {}
 
         while bool(self.initial_phase) == False:
             rclpy.spin_once(self, timeout_sec=0.1)
         self.get_logger().info("First pose received. Moving on...")
 
         self.my_publishers = []
-        for robot in self.robots:
+        for robot in self.order:
             self.my_publishers.append(self.create_publisher(FullState,'/'+ robot + '/cmd_full_state', 10))
         
  
@@ -59,21 +63,13 @@ class Encirclement(Node):
         #initiating some variables
         self.target_v_new = np.zeros((3,self.n_agents))
         self.Ca_r = np.zeros((3,3,self.n_agents))
-        self.initial_phase = {}
+        self.Ca_b = np.zeros((3,3,self.n_agents))
         self.agents_r = np.zeros((3, self.n_agents))
         self.phi_cur = np.zeros(self.n_agents)
         self.embedding = Embedding(self.r, self.phi_dot,self.k_phi, self.tactic,self.n_agents)
         self.timer_period = 0.1
 
-        #takeoff trajectory
-        self.t_max = 5
-        self.t_takeoff = np.arange(0,self.t_max,self.timer_period)
-        self.r_takeoff = np.zeros((3,len(self.t_takeoff))) 
-        self.r_takeoff[0,:] += self.initial_pose.position.x
-        self.r_takeoff[1,:] += self.initial_pose.position.y
-        self.r_takeoff[2,:] = self.hover_height*(self.t_takeoff/self.t_max) #+ self.initial_pose.position.z
-        v,_ = self.trajectory(self.r_takeoff)
-        self.r_dot_takeoff = v
+
 
         #landing trajectory
         self.t_landing = np.arange(self.t_max,1,-self.timer_period)
@@ -120,13 +116,13 @@ class Encirclement(Node):
                     self.has_hovered = True
                     self.get_logger().info('Hovering finished')
                 else:
-                    phi_new, target_r_new, self.target_v_new, target_a_new, _, _, _ = self.embedding.targets(self.agents_r,self.target_v_new, self.phi_cur,self.timer_period)
-                    Wr_r_new, f_T_r_new, _,quat_new, self.Ca_r = generate_reference(target_a_new,self.Ca_r,target_v_new,self.timer_period)
+                    phi_new, target_r_new, target_v_new, target_a_new, _, _, _ = self.embedding.targets(self.agents_r,self.target_v_new, self.phi_cur,self.timer_period)
+                    Wr_r_new, f_T_r_new, _,quat_new, self.Ca_r = generate_reference(target_a_new,self.Ca_r,self.Ca_b,target_v_new,self.timer_period)
 
             #ITS COOL UNTIL HERE
             elif not self.has_landed:# and self.pose.position.z > 0.10:#self.ra_r[:,0]:
-                phi_new, target_r_new, self.target_v_new, target_a_new, _, _, _ = self.embedding.targets(self.agents_r,self.target_v_new, self.phi_cur,self.timer_period)
-                Wr_r_new, f_T_r_new, _,quat_new, self.Ca_r = generate_reference(target_a_new,self.Ca_r,target_v_new,self.timer_period)
+                self.phi_cur, target_r_new, self.target_v_new, target_a_new, _, _, _ = self.embedding.targets(self.agents_r,self.target_v_new, self.phi_cur,self.timer_period)
+                Wr_r_new, f_T_r_new, _,quat_new, self.Ca_r = generate_reference(target_a_new,self.Ca_r,self.Ca_b,target_v_new,self.timer_period)
                 self.next_point(self.ra_r[:,self.i],self.va_r[:,self.i],self.va_r_dot[:,self.i],Wr_r_new,quat_new,self.Ca_r[:,:,self.i])
                 
 
@@ -146,15 +142,31 @@ class Encirclement(Node):
         """
         # self.get_logger().error(f"Received poses")
         poses = msg.poses
+        if bool(self.initial_phase) == False:
+            for pose in msg.poses:
+                if pose.name in self.robots:
+                    self.initial_phase[str(pose.name)] = np.arctan2(pose.pose.position.y, pose.pose.position.x)
+            
+            self.order = sorted(self.initial_phases, key=lambda x: self.initial_phase[x])
+        elif bool(self.initial_pose) == False:
+            for pose in msg.poses:
+                if pose.name in self.robots:
+                    self.initial_pose[pose.name] = pose.pose.position
+        
         for pose in poses:
             if pose.name in self.robots:
                 if bool(self.initial_phase) == False:
                     self.initial_phase[str(pose.name)] = np.arctan2(pose.pose.position.y, pose.pose.position.x)
                     self.order = sorted(self.initial_phases, key=lambda x: self.initial_phase[x])
+                elif bool(self.initial_pose) == False:
+                    for order in self.order:
+                        self.initial_pose[order] = pose.pose.position
                 else:
                     self.agents_r[0, self.order.index(pose.name)] = pose.pose.position.x
                     self.agents_r[1, self.order.index(pose.name)] = pose.pose.position.y
                     self.agents_r[2, self.order.index(pose.name)] = pose.pose.position.z
+                    quat = [pose.pose.orientation.x, pose.pose.orientation.y, pose.pose.orientation.z, pose.pose.orientation.w]
+                    self.Ca_b[:,:,self.order.index(pose.name)] = R.from_quat(quat).as_matrix()
                 #quat = pose.pose.orientation
 
     def takeoff(self):
@@ -167,6 +179,17 @@ class Encirclement(Node):
             self.has_taken_off = True
         self.t_init = time.time()
 
+    def takeoff_traj(self,t_max):
+        #takeoff trajectory
+        self.t_takeoff = np.arange(0,t_max,self.timer_period)
+        #self.t_takeoff = np.tile(t_takeoff[:,np.newaxis],(1,self.n_agents))
+        self.r_takeoff = np.zeros((3,len(self.t_takeoff,self.n_agents))) 
+
+        self.r_takeoff[0,:] += self.initial_pose.position.x
+        self.r_takeoff[1,:] += self.initial_pose.position.y
+        self.r_takeoff[2,:] = self.hover_height*(self.t_takeoff/self.t_max) #+ self.initial_pose.position.z
+        v,_ = self.trajectory(self.r_takeoff)
+        self.r_dot_takeoff = v
     def hover(self):
         msg = FullState()
         msg.pose.position.x = self.initial_pose.position.x
@@ -182,26 +205,27 @@ class Encirclement(Node):
         self.reboot_client.call_async(req)
         time.sleep(2.0)
 
-    def next_point(self,r,v,v_dot=np.zeros(3),Wr_r_new=np.zeros(3),quat_new=np.array([0,0,0,1])):
-        msg = FullState()
-        msg.pose.position.x = float(r[0])
-        msg.pose.position.y = float(r[1])
-        msg.pose.position.z = float(r[2])
-        msg.acc.x = float(v_dot[0])
-        msg.acc.y = float(v_dot[1])
-        msg.acc.z = float(v_dot[2])
-        msg.pose.orientation.x = float(quat_new[0])
-        msg.pose.orientation.y = float(quat_new[1])
-        msg.pose.orientation.z = float(quat_new[2])
-        msg.pose.orientation.w = float(quat_new[3])
-        msg.twist.linear.x = float(v[0])
-        msg.twist.linear.y = float(v[1])
-        msg.twist.linear.z = float(v[2])
-        msg.twist.angular.x = np.rad2deg(float(Wr_r_new[0]))
-        msg.twist.angular.y = np.rad2deg(float(Wr_r_new[1]))
-        msg.twist.angular.z = np.rad2deg(float(Wr_r_new[2]))
-        #self.get_logger().info(f"Publishing to {msg.pose.position.x}, {msg.pose.position.y}, {msg.pose.position.z}")
-        self.full_state_publisher.publish(msg)
+    def next_point(self,r,v,v_dot,Wr_r_new,quat_new):
+        for publisher in self.my_publishers:
+            msg = FullState()
+            msg.pose.position.x = float(r[0])
+            msg.pose.position.y = float(r[1])
+            msg.pose.position.z = float(r[2])
+            msg.acc.x = float(v_dot[0])
+            msg.acc.y = float(v_dot[1])
+            msg.acc.z = float(v_dot[2])
+            msg.pose.orientation.x = float(quat_new[0])
+            msg.pose.orientation.y = float(quat_new[1])
+            msg.pose.orientation.z = float(quat_new[2])
+            msg.pose.orientation.w = float(quat_new[3])
+            msg.twist.linear.x = float(v[0])
+            msg.twist.linear.y = float(v[1])
+            msg.twist.linear.z = float(v[2])
+            msg.twist.angular.x = np.rad2deg(float(Wr_r_new[0]))
+            msg.twist.angular.y = np.rad2deg(float(Wr_r_new[1]))
+            msg.twist.angular.z = np.rad2deg(float(Wr_r_new[2]))
+            #self.get_logger().info(f"Publishing to {msg.pose.position.x}, {msg.pose.position.y}, {msg.pose.position.z}")
+            publisher.publish(msg)
 
 def main():
     rclpy.init()

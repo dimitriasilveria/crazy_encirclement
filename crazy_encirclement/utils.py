@@ -9,7 +9,7 @@ I3 = np.array([0,0,1]).T
 w_r = 0 #reference yaw
 ca_1 = np.array([np.cos(w_r),np.sin(w_r),0]).T #auxiliar vector 
 
-def generate_reference(va_r_dot,Ca_r,va_r,dt):
+def generate_reference(va_r_dot,Ca_r,Ca_b,va_r,dt):
     try:
         n_agents = va_r.shape[1]
     except:
@@ -59,6 +59,7 @@ def generate_reference(va_r_dot,Ca_r,va_r,dt):
         
         angles[:,i] = R.from_matrix(Ca_r_new[:,:,i]).as_euler('zyx', degrees=False)
         quaternion[:,i] = R.from_matrix(Ca_r_new[:,:,i]).as_quat()
+        Wr_r[:,i] = Ca_b[:,:,i].T@Ca_r[:,:,i] @ Wr_r[:,i]
         
     return Wr_r, f_T_r, angles, quaternion, Ca_r_new
 
