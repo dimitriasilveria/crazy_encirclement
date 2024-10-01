@@ -152,7 +152,7 @@ class Encirclement(Node):
             for pose in msg.poses:
                 if pose.name in self.robots:
                     self.initial_pose[pose.name] = pose.pose.position
-        
+        #TODO: continue correcting this
         for pose in poses:
             if pose.name in self.robots:
                 if bool(self.initial_phase) == False:
