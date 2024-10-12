@@ -7,7 +7,7 @@ from scipy.spatial.transform import Rotation as R
 from utils import generate_reference
 from icecream import ic
 
-N = 2*2500
+N = 2500
 r = 1
 k_phi = 5
 kx = 15
@@ -90,15 +90,31 @@ for i in range(N-1):
 
 fig = plt.figure()
 ax = fig.add_subplot(111, projection='3d')
-
+legends = []
 for agent in range(n_agents):
     ax.plot3D(ra_r[0,agent,1:-1], ra_r[1,agent,1:-1], ra_r[2,agent,1:-1])
-
+    legends.append(f"Agent {agent+1}")
+ax.legend(legends)
 ax.set_xlabel('X Axis')
 ax.set_ylabel('Y Axis')
 ax.set_zlabel('Z Axis')
-
+# plt.savefig("3_agents_SO3.png")
+# plt.close()
 plt.show()
+
+fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
+for agent in range(1):
+    ax.plot3D(ra_r[0,agent,1:-1], ra_r[1,agent,1:-1], ra_r[2,agent,1:-1])
+    legends.append(f"Agent {agent+1}")
+ax.legend(legends)
+ax.set_xlabel('X Axis')
+ax.set_ylabel('Y Axis')
+ax.set_zlabel('Z Axis')
+# plt.savefig("3_agents_SO3.png")
+# plt.close()
+plt.show()
+
 
 
 fig = plt.figure()

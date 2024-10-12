@@ -7,7 +7,7 @@ from std_msgs.msg import Bool
 from rclpy.duration import Duration
 from crazy_encirclement.embedding import Embedding
 from std_srvs.srv import Empty
-from std_msgs.msg import Float32
+from std_msgs.msg import Float32MultiArray, Float32
 
 from crazy_encirclement.utils2 import generate_reference, trajectory
 
@@ -51,6 +51,7 @@ class Encirclement(Node):
         self.hover_height = 0.3
         self.i_landing = 0
         self.i_takeoff = 0
+        self.phases = np.zeros(self.n_agents)
         self.phi_cur = Float32()
         
         self.create_subscription(
@@ -73,14 +74,19 @@ class Encirclement(Node):
             self._poses_changed, qos_profile
         )
         
+        # self.create_subscription(
+        #     StringArray,
+        #     '/agents_order',
+        #     self._order_callback,
+        #     10)
         self.create_subscription(
-            StringArray,
-            '/agents_order',
-            self._order_callback,
+            Float32MultiArray,
+            '/'+self.robot+'/phases',
+            self._phase_callback,
             10)
         
-        while not self.has_order:
-            rclpy.spin_once(self, timeout_sec=0.1)
+        # while not self.has_order:
+        #     rclpy.spin_once(self, timeout_sec=0.1)
         while (not self.has_initial_pose):
             rclpy.spin_once(self, timeout_sec=0.1)
 
@@ -95,31 +101,31 @@ class Encirclement(Node):
         self.target_v = np.zeros(3)
         self.kx = 2
         self.kv = 2.5*np.sqrt(2)
-        if self.n_agents > 2:
-            self.phases = np.zeros(3)
-            self.create_subscription(
-                Float32,
-                '/'+self.order[0]+'/phase',
-                self._heading_phase_callback,
-                10)
-            self.create_subscription(
-                Float32,
-                '/'+self.order[2]+'/phase',
-                self._lagging_phase_callback,
-                10)
-        else:            
-            self.create_subscription(
-                Float32,
-                '/'+self.order[0]+'/phase',
-                self._heading_phase_callback,
-                10)
-            self.create_subscription(
-                Float32,
-                '/'+self.order[0]+'/phase',
-                self._lagging_phase_callback,
-                10)
+        # if self.n_agents > 2:
+        #     self.phases = np.zeros(3)
+        #     self.create_subscription(
+        #         Float32,
+        #         '/'+self.order[0]+'/phase',
+        #         self._heading_phase_callback,
+        #         10)
+        #     self.create_subscription(
+        #         Float32,
+        #         '/'+self.order[2]+'/phase',
+        #         self._lagging_phase_callback,
+        #         10)
+        # else:            
+        #     self.create_subscription(
+        #         Float32,
+        #         '/'+self.order[0]+'/phase',
+        #         self._heading_phase_callback,
+        #         10)
+        #     self.create_subscription(
+        #         Float32,
+        #         '/'+self.order[0]+'/phase',
+        #         self._lagging_phase_callback,
+        #         10)
             
-            self.phases = np.zeros(2)
+            # self.phases = np.zeros(2)
         self.timer_period = 0.01
         self.embedding = Embedding(self.r, self.phi_dot,self.k_phi, self.tactic,self.n_agents,self.timer_period)
 
@@ -163,7 +169,7 @@ class Encirclement(Node):
                 self.phi_cur.data, target_r, self.target_v, target_a, quaternion, Wr_r= self.embedding.targets(self.agents_r,self.target_v, self.phases,self.Ca_b)
                 self.next_point(target_r,self.target_v,target_a,Wr_r,quaternion)
                 self.phase_pub.publish(self.phi_cur)
-                self.phases[1] = self.phi_cur.data.copy()
+                # self.phases[1] = self.phi_cur.data.copy()
  
                 # self.info(f"target_r_new: {target_r_new}")
                 # self.info(f"target_v_new: {target_v_new}")
@@ -184,39 +190,39 @@ class Encirclement(Node):
 
             #self.publishers[i].publish(msg)
     
-    def _order_callback(self, msg):
+    # def _order_callback(self, msg):
         
-        order = msg.data
-        if not self.has_order:
-            self.has_order = True
-            for i in range(len(order)):
+    #     order = msg.data
+    #     if not self.has_order:
+    #         self.has_order = True
+    #         for i in range(len(order)):
 
-                if order[i] == self.robot:
-                    self.has_order = True
-                    if self.n_agents > 2:
-                        if i == 0:
-                            self.order.append(order[-1])
-                            self.order.append(order[i])
-                            self.order.append(order[i+1])
-                        elif i == len(order)-1:
-                            self.order.append(order[i-1])
-                            self.order.append(order[i])
-                            self.order.append(order[0])
-                        else:
-                            self.order.append(order[i-1])
-                            self.order.append(order[i])
-                            self.order.append(order[i+1])
-                    else: 
-                        #TO DO: check what to do with 2 agents ###################
-                        if i == 1:
-                            self.order.append(order[i-1])
-                            self.order.append(order[i])
-                            self.order.append(order[i-1])
-                        else:
-                            self.order.append(order[i+1])
-                            self.order.append(order[i])
-                            self.order.append(order[i+1])
-                    self.info(f"Order of agents: {self.order}")
+    #             if order[i] == self.robot:
+    #                 self.has_order = True
+    #                 if self.n_agents > 2:
+    #                     if i == 0:
+    #                         self.order.append(order[-1])
+    #                         self.order.append(order[i])
+    #                         self.order.append(order[i+1])
+    #                     elif i == len(order)-1:
+    #                         self.order.append(order[i-1])
+    #                         self.order.append(order[i])
+    #                         self.order.append(order[0])
+    #                     else:
+    #                         self.order.append(order[i-1])
+    #                         self.order.append(order[i])
+    #                         self.order.append(order[i+1])
+    #                 else: 
+    #                     #TO DO: check what to do with 2 agents ###################
+    #                     if i == 1:
+    #                         self.order.append(order[i-1])
+    #                         self.order.append(order[i])
+    #                         self.order.append(order[i-1])
+    #                     else:
+    #                         self.order.append(order[i+1])
+    #                         self.order.append(order[i])
+    #                         self.order.append(order[i+1])
+    #                 self.info(f"Order of agents: {self.order}")
 
     def _poses_changed(self, msg):
         """
@@ -253,11 +259,8 @@ class Encirclement(Node):
             self.r_landing[0,:] += self.final_pose[0]*np.ones(len(self.t_landing))
             self.r_landing[1,:] += self.final_pose[1]*np.ones(len(self.t_landing))
 
-    def _heading_phase_callback(self, msg):
-        self.phases[0] = msg.data
-
-    def _lagging_phase_callback(self, msg):
-        self.phases[2] = msg.data
+    def _phase_callback(self, msg):
+        self.phases = msg.data
 
     def takeoff(self):
         self.next_point(self.r_takeoff[:,self.i_takeoff],self.r_dot_takeoff[:,self.i_takeoff],np.zeros((3)))
