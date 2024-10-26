@@ -7,7 +7,7 @@ from scipy.spatial.transform import Rotation as R
 from utils import generate_reference
 from icecream import ic
 
-N = 80000
+N = 10000
 r = 1
 k_phi = 5
 kx = 15
