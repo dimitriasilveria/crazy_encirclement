@@ -6,22 +6,30 @@ from utils2 import R3_so3
 from scipy.linalg import expm
 from icecream import ic
 class Embedding():
-    def __init__(self,r,phi_dot,k_phi,tactic,n_agents,dt):
+    def __init__(self,r,phi_dot,k_phi,tactic,n_agents,initial_pos,dt):
         self.phi_dot = phi_dot
         self.r = r
         self.k_phi = k_phi
         self.tactic = tactic
         self.n = n_agents
         self.dt = dt
+        self.initial_phase = np.zeros(self.n)
         self.Rot = np.zeros((3,3,self.n))
+        self.pass_zero = np.zeros(self.n)
+        self.pass_ref = np.zeros(self.n)
         for i in range(self.n):
             self.Rot[:,:,i] = np.eye(3)
+            self.initial_phase[i] = np.arctan2(initial_pos[1,i],initial_pos[0,i])
+            self.pass_ref[i] = False
+            self.pass_zero[i] = False
+            if self.initial_phase[i] == 0:
+                self.initial_phase[i] = 2*np.pi
         self.wd = np.zeros(self.n)
         self.T = 24
         self.t = np.arange(0,self.T, self.dt)
 
        
-    def targets(self,agent_r,phi_prev):
+    def targets(self,agent_r,phi_prev,j):
 
         target_r = np.zeros((3, self.n))
         target_v = np.zeros((3, self.n))
@@ -74,15 +82,34 @@ class Embedding():
             phi_dot_x = self.phi_dot*np.cos(phi_i)*np.sin(phi_i)
             v_d_hat_x = np.array([-phi_dot_x, 0, 0])
             Rot_x = expm(R3_so3(v_d_hat_x.reshape(-1,1))*self.dt)
+            if j == 0:
+                ic(Rot_x)
             phi_dot_y = 0
             v_d_hat_y = np.array([0, -phi_dot_y, 0])
             Rot_y = expm(R3_so3(v_d_hat_y.reshape(-1,1))*self.dt)
             v_d_hat_z = np.array([0, 0, -wd])
             Rot_z = expm(R3_so3(v_d_hat_z.reshape(-1,1))*self.dt)
+            if not self.pass_zero[i]:
+                self.pass_zero[i] = phi_i > phi_prev[i]
+            self.pass_ref[i] = phi_i < self.initial_phase[i]
+            # if self.pass_ref[i]:
+                # ic(self.pass_ref[i])
+                # ic(self.pass_zero[i])
+                #input()
+            # if (self.pass_zero[i]) and (self.pass_ref[i]):             
+            #     ic('reset')
+            #     ic(phi_i, phi_prev[i])
+            #     ic(j)
+            #     self.pass_zero[i] = False
+            #     self.pass_ref[i] = False
+            #     # self.count += 1
+            #     ic(Rot_x)
+            #     self.Rot[:,:,i] = Rot_x
+            #     self.pass_zero[i] = False
             if (phi_i) > (phi_prev[i]):
-                ic('reset')
+                #ic('reset')
                 #self.cont += 1
-                ic(Rot_x)
+                #ic(Rot_x)
                 self.Rot[:,:,i] = Rot_x
             else:
                 self.Rot[:,:,i] = Rot_x@self.Rot[:,:,i]
@@ -105,6 +132,7 @@ class Embedding():
             target_r[0, i] = pos_d[0]
             target_r[1, i] = pos_d[1]
             target_r[2, i] = pos_d[2]
+
             # if self.tactic == 'circle':
             #     target_r[2,i] = 0.5
             unit[i, :] = [np.cos(phi_i), np.sin(phi_i), 0]

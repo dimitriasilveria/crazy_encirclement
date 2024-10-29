@@ -86,7 +86,7 @@ class Circle_distortion(Node):
         self.info("First pose received. Moving on...")
 
 
-        self.full_state_pub = self.create_publisher(FullState,'/'+ self.robot + '/cmd_full_state', 10)
+        self.position_pub = self.create_publisher(Pose,'/'+ self.robot + '/cmd_position', 10)
         self.phase_pub = self.create_publisher(Float32,'/'+ self.robot + '/phase', 10)
 
         #initiating some variables
@@ -243,7 +243,7 @@ class Circle_distortion(Node):
         msg.position.x = self.initial_pose[0]
         msg.position.y = self.initial_pose[1]
         msg.position.z = self.hover_height
-        self.full_state_pub.publish(msg)
+        self.position_pub.publish(msg)
 
 
     def landing(self):
@@ -265,7 +265,7 @@ class Circle_distortion(Node):
         msg.orientation.w = float(quat_new[3])
 
             
-        self.full_state_pub.publish(msg)
+        self.position_pub.publish(msg)
 
 def main():
     rclpy.init()

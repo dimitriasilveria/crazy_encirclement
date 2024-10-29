@@ -7,12 +7,12 @@ from scipy.spatial.transform import Rotation as R
 from utils import generate_reference
 from icecream import ic
 
-N = 2000
-r = 0.5
+N = 5000
+r = 1
 k_phi = 5
 kx = 15
 kv = 2.5*np.sqrt(2)
-n_agents = 1
+n_agents = 3
 phi_dot = 0.5
 dt = 0.01
 
@@ -39,13 +39,13 @@ f_T_r = np.zeros((n_agents,N))
 angles = np.zeros((3,n_agents,N))
 Wr_r = np.zeros((3,n_agents,N))
 
-agents_r[:, 0, 0] = np.array([r*np.cos(np.pi/4),r*np.sin(np.pi/4),0]).T
-# agents_r[:, 1, 0] = np.array([r*np.cos(np.pi/5),r*np.sin(np.pi/5),0]).T
-# agents_r[:, 2, 0] = np.array([r*np.cos(2*np.pi/3),r*np.sin(2*np.pi/3) ,0]).T
-# for i in range(n_agents):
-#     phi_cur[i,0] = np.arctan2(agents_r[1,i,0],agents_r[0,i,0])
+agents_r[:, 0, 0] = np.array([r*np.cos(0),r*np.sin(0),0]).T
+agents_r[:, 1, 0] = np.array([r*np.cos(np.pi/5),r*np.sin(np.pi/5),0]).T
+agents_r[:, 2, 0] = np.array([r*np.cos(2*np.pi/3),r*np.sin(2*np.pi/3) ,0]).T
+for i in range(n_agents):
+    phi_cur[i,0] = np.arctan2(agents_r[1,i,0],agents_r[0,i,0])
 
-embedding = Embedding(r, phi_dot,k_phi, 'dumbbell',n_agents,dt)
+embedding = Embedding(r, phi_dot,k_phi, 'dumbbell',n_agents,agents_r[:,:,0],dt)
 
 
 # for i in range(10):
@@ -73,7 +73,7 @@ for i in range(N-1):
 
 
 
-    phi_new, target_r_new, target_v_new, phi_diff_new, distances_new = embedding.targets(agents_r[:,:,i], agents_v[:,:,i],phi_cur[:,i])
+    phi_new, target_r_new, target_v_new, phi_diff_new, distances_new = embedding.targets(agents_r[:,:,i],phi_cur[:,i],i)
     phi_cur[:,i+1] = phi_new
     phi_dot_cur[:,i] = (phi_cur[:,i+1] - phi_cur[:,i])/dt
     ra_r[:,:,i+1] = target_r_new
