@@ -40,8 +40,8 @@ angles = np.zeros((3,n_agents,N))
 Wr_r = np.zeros((3,n_agents,N))
 
 agents_r[:, 0, 0] = np.array([r*np.cos(0),r*np.sin(0),0]).T
-agents_r[:, 1, 0] = np.array([r*np.cos(np.pi/5),r*np.sin(np.pi/5),0]).T
-agents_r[:, 2, 0] = np.array([r*np.cos(2*np.pi/3),r*np.sin(2*np.pi/3) ,0]).T
+agents_r[:, 1, 0] = np.array([r*np.cos(np.deg2rad(120)),r*np.sin(np.deg2rad(120)),0]).T
+agents_r[:, 2, 0] = np.array([r*np.cos(np.deg2rad(120)),r*np.sin(np.deg2rad(-120)) ,0]).T
 for i in range(n_agents):
     phi_cur[i,0] = np.arctan2(agents_r[1,i,0],agents_r[0,i,0])
 
@@ -84,6 +84,7 @@ for i in range(N-1):
         va_r[:,:,i] = (ra_r[:,:,i+1] - ra_r[:,:,i])/dt
     phi_diff[:,i] = phi_diff_new
     distances[:,i] = distances_new
+    #agents_r[:,:,i+1] = target_r_new
     accels[:,:,i] = kx*(ra_r[:,:,i+1] - agents_r[:,:,i]) + kv*(va_r[:,:,i+1] - agents_v[:,:,i])
     agents_v[:,:,i+1] = agents_v[:,:,i] + accels[:,:,i]*dt
     agents_r[:,:,i+1] = agents_r[:,:,i] + agents_v[:,:,i]*dt + 0.5*accels[:,:,i]*dt**2

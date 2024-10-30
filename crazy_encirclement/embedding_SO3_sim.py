@@ -106,13 +106,13 @@ class Embedding():
             #     ic(Rot_x)
             #     self.Rot[:,:,i] = Rot_x
             #     self.pass_zero[i] = False
-            if (phi_i) > (phi_prev[i]):
-                #ic('reset')
-                #self.cont += 1
-                #ic(Rot_x)
-                self.Rot[:,:,i] = Rot_x
-            else:
-                self.Rot[:,:,i] = Rot_x@self.Rot[:,:,i]
+            # if (phi_i) > (phi_prev[i]):
+            #     #ic('reset')
+            #     #self.cont += 1
+            #     #ic(Rot_x)
+            #     self.Rot[:,:,i] = Rot_x
+            # else:
+            self.Rot[:,:,i] = Rot_x@self.Rot[:,:,i]
             Rot = self.Rot[:,:,i]#@Rot_y@Rot_z
 
             v_d = self.Rot[:,:,i]@v_d_hat_z.T
