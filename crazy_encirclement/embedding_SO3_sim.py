@@ -129,11 +129,11 @@ class Embedding():
             if (((np.pi)-self.phi_des[i]) <0) and (((np.pi)-phi_d) >0):# and (wd > 0):
                 self.Rot_act[:,:,i] = np.eye(3)
                 self.Rot_des[:,:,i] = np.eye(3)
-                ic(self.phi_des[i],phi_d)
+                #ic(self.phi_des[i],phi_d)
             if ((self.phi_des[i]) <0.01) and (np.abs((2*np.pi)-phi_d) <0.01) and (wd > 0):
                 self.Rot_act[:,:,i] = np.eye(3)
                 self.Rot_des[:,:,i] = np.eye(3)
-                ic(self.phi_des[i],phi_d)
+                #ic(self.phi_des[i],phi_d)
             pos_d = Rot@pos_d_hat
             # if i == 1 and not self.pass_ref[i]:
 

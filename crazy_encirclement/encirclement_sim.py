@@ -11,11 +11,11 @@ from icecream import ic
 import pandas as pd
 import os
 
-N = 20000
+N = 4000
 r = 1
 k_phi = 6
 kx = 20
-kv = 2.5*np.sqrt(2)
+kv = 6.5*np.sqrt(2)
 n_agents = 4
 phi_dot = 0.5#np.deg2rad(35)
 dt = 0.01
@@ -66,7 +66,7 @@ for i in range(n_agents):
 embedding = Embedding(r, phi_dot,k_phi, 'dumbbell',n_agents,agents_r[:,:,0],dt)
 
 for i in range(0,N-1):
-    #print("percentage: ", float(i/N))
+    print("percentage: ", float(i/N))
 
     phi_new, target_r_new, target_v_new, phi_diff_new, distances_new,debug = embedding.targets(agents_r[:,:,i],i)
 
