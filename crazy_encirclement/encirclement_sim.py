@@ -11,12 +11,12 @@ from icecream import ic
 import pandas as pd
 import os
 
-N = 4000
+N = 20000
 r = 1
-k_phi = 5
+k_phi = 6
 kx = 20
 kv = 2.5*np.sqrt(2)
-n_agents = 2
+n_agents = 4
 phi_dot = 0.5#np.deg2rad(35)
 dt = 0.01
 save = False
@@ -54,9 +54,10 @@ f_T_r = np.zeros((n_agents,N))
 angles = np.zeros((3,n_agents,N))
 Wr_r = np.zeros((3,n_agents,N))
 
-agents_r[:, 0, 0] = 1*np.array([r*np.cos(0),r*np.sin(0),0.6]).T
-agents_r[:, 1, 0] = 1*np.array([r*np.cos(np.deg2rad(270)),r*np.sin(np.deg2rad(270)),0.6]).T
-# agents_r[:, 2, 0] = 1.1*np.array([r*np.cos(np.deg2rad(20)),r*np.sin(np.deg2rad(20)) ,0.6]).T
+agents_r[:, 0, 0] = 1*np.array([r*np.cos(np.deg2rad(30)),r*np.sin(np.deg2rad(30)),0.6]).T
+agents_r[:, 1, 0] = 1*np.array([r*np.cos(np.deg2rad(110)),r*np.sin(np.deg2rad(110)),0.6]).T
+agents_r[:, 2, 0] = 1.*np.array([r*np.cos(np.deg2rad(240)),r*np.sin(np.deg2rad(240)) ,0.6]).T
+agents_r[:, 3, 0] = 1.*np.array([r*np.cos(np.deg2rad(290)),r*np.sin(np.deg2rad(290)) ,0.6]).T
 
 ra_r[:,:,0] = agents_r[:,:,0]
 for i in range(n_agents):
@@ -64,7 +65,7 @@ for i in range(n_agents):
 
 embedding = Embedding(r, phi_dot,k_phi, 'dumbbell',n_agents,agents_r[:,:,0],dt)
 
-for i in range(N-1):
+for i in range(0,N-1):
     #print("percentage: ", float(i/N))
 
     phi_new, target_r_new, target_v_new, phi_diff_new, distances_new,debug = embedding.targets(agents_r[:,:,i],i)
@@ -82,10 +83,10 @@ for i in range(N-1):
     #ic(va_r[:,:,i+1])
 
 
-    # accels[:,:,i] =  kx*(ra_r[:,:,i+1] - agents_r[:,:,i]) + kv*(va_r[:,:,i+1] - agents_v[:,:,i]) # +
-    # agents_v[:,:,i+1] = agents_v[:,:,i] + accels[:,:,i]*dt #*np.random.uniform(0.2,1.2)
-    # agents_r[:,:,i+1] = agents_r[:,:,i] + agents_v[:,:,i]*dt + 0.5*accels[:,:,i]*dt**2#*np.random.uniform(0.2,1.2)
-    agents_r[:,:,i+1] = target_r_new
+    accels[:,:,i] =  kx*(ra_r[:,:,i+1] - agents_r[:,:,i]) + kv*(va_r[:,:,i+1] - agents_v[:,:,i]) # +
+    agents_v[:,:,i+1] = agents_v[:,:,i] + accels[:,:,i]*dt #*np.random.uniform(0.2,1.2)
+    agents_r[:,:,i+1] = agents_r[:,:,i] + agents_v[:,:,i]*dt + 0.5*accels[:,:,i]*dt**2#*np.random.uniform(0.2,1.2)
+    #agents_r[:,:,i+1] = target_r_new
 
 figures_dir = "figures/"
 os.makedirs(figures_dir, exist_ok=True)
@@ -96,14 +97,17 @@ ax = fig.add_subplot(111, projection='3d')
 legends = []
 for agent in range(n_agents):
     color = colors[agent]
-    ax.plot3D(ra_r[0,agent,1:-1], ra_r[1,agent,1:-1], ra_r[2,agent,1:-1],color=color)
+    ax.plot3D(ra_r[0,agent,0:-1], ra_r[1,agent,0:-1], ra_r[2,agent,0:-1],color=color,label=f"Desired trajectory agent {agent+1}")
+    ax.scatter(agents_r[0,agent,0], agents_r[1,agent,0], agents_r[2,agent,0],color=color,marker='o')
+    ax.scatter(agents_r[0,agent,-1], agents_r[1,agent,-1], agents_r[2,agent,-1],color='black',marker='o')
     #ax.plot3D(agents_r[0,agent,1:-1], agents_r[1,agent,1:-1], agents_r[2,agent,1:-1],color=color, linestyle='dashed')
-    legends.append(f"Desired trajectory agent {agent+1}")
-    legends.append(f"Real trajectory agent {agent+1}")
-ax.legend(legends)#, bbox_to_anchor=(1.05, 0.5), loc='center left', borderaxespad=0.)
+
+    #legends.append(f"Real trajectory agent {agent+1}")
+ax.legend()#, bbox_to_anchor=(1.05, 0.5), loc='center left', borderaxespad=0.)
 ax.set_xlabel('X Axis')
 ax.set_ylabel('Y Axis')
 ax.set_zlabel('Z Axis')
+#ax.view_init(elev=90, azim=-90)
 
 if save:
 # # List of perspectives to save (elev, azim)
@@ -140,62 +144,72 @@ else:
 # ax.set_ylabel('Y Axis')
 # ax.set_zlabel('Z Axis')
 # plt.savefig()
-for i in range(n_agents):
-    plt.subplot(3,1,1)
-    plt.title(f"Velocities agent {i+1}")
-    plt.plot(t[0:-1],va_r[0,i,0:-1])
-    plt.ylabel("$v_x$ (m/s)")
-    plt.subplot(3,1,2)
-    plt.plot(t[0:-1],va_r[1,i,0:-1])
-    plt.ylabel("$v_y$ (m/s)")
-    plt.subplot(3,1,3)
-    plt.plot(t[0:-1],va_r[2,i,0:-1])
-    plt.ylabel("$v_z$ (m/s)")
-    plt.xlabel("Time (s)")
+# for i in range(n_agents):
+#     plt.subplot(3,1,1)
+#     plt.title(f"Velocities agent {i+1}")
+#     plt.plot(t[0:-1],va_r[0,i,0:-1])
+#     plt.ylabel("$v_x$ (m/s)")
+#     plt.subplot(3,1,2)
+#     plt.plot(t[0:-1],va_r[1,i,0:-1])
+#     plt.ylabel("$v_y$ (m/s)")
+#     plt.subplot(3,1,3)
+#     plt.plot(t[0:-1],va_r[2,i,0:-1])
+#     plt.ylabel("$v_z$ (m/s)")
+#     plt.xlabel("Time (s)")
     
-    #plt.show()
-    if save:
-        plt.savefig(f"{figures_dir}/velocities_agent_{i+1}.png")
-        plt.close()
-    else:
-        plt.show()
+#     #plt.show()
+#     if save:
+#         plt.savefig(f"{figures_dir}/velocities_agent_{i+1}.png")
+#         plt.close()
+#     else:
+#         plt.show()
 
+# for i in range(n_agents):
+#     plt.subplot(3,1,1)
+#     plt.title(f"Positions agent {i+1}")
+#     plt.plot(t[0:-1],ra_r[0,i,0:-1])
+#     plt.plot(t[0:-1],agents_r[0,i,0:-1],linestyle='dashed')
+#     plt.legend(["Desired","Real"])
+#     plt.ylabel("x (m)")
+#     plt.subplot(3,1,2)
+#     plt.plot(t[0:-1],ra_r[1,i,0:-1])
+#     plt.plot(t[0:-1],agents_r[1,i,0:-1],linestyle='dashed')
+#     plt.legend(["Desired","Real"])
+#     plt.ylabel("y (m)")
+#     plt.subplot(3,1,3)
+#     plt.plot(t[0:-1],ra_r[2,i,0:-1])
+#     plt.plot(t[0:-1],agents_r[2,i,0:-1],linestyle='dashed')
+#     plt.legend(["Desired","Real"])
+#     plt.ylabel("z (m)")
+#     plt.xlabel("Time (s)")
+
+#     if save:
+#         plt.savefig(f"{figures_dir}/positions_agent_{i+1}.png")
+#         plt.close()
+#     else:
+#         plt.show()
 for i in range(n_agents):
-    plt.subplot(3,1,1)
-    plt.title(f"Positions agent {i+1}")
-    plt.plot(t[0:-1],ra_r[0,i,0:-1])
-    plt.plot(t[0:-1],agents_r[0,i,0:-1],linestyle='dashed')
-    plt.legend(["Desired","Real"])
-    plt.ylabel("x (m)")
-    plt.subplot(3,1,2)
-    plt.plot(t[0:-1],ra_r[1,i,0:-1])
-    plt.plot(t[0:-1],agents_r[1,i,0:-1],linestyle='dashed')
-    plt.legend(["Desired","Real"])
-    plt.ylabel("y (m)")
-    plt.subplot(3,1,3)
-    plt.plot(t[0:-1],ra_r[2,i,0:-1])
-    plt.plot(t[0:-1],agents_r[2,i,0:-1],linestyle='dashed')
-    plt.legend(["Desired","Real"])
-    plt.ylabel("z (m)")
-    plt.xlabel("Time (s)")
-
-    if save:
-        plt.savefig(f"{figures_dir}/positions_agent_{i+1}.png")
-        plt.close()
-    else:
-        plt.show()
-
-for i in range(n_diff):
-    plt.plot(t[0:-1],distances[i,0:-1],label=f"Distance agent {i+1}")
-plt.ylabel("Distances (m)")
+    plt.plot(t[0:-1],np.rad2deg(phi_cur[i,0:-1]),label=f"Angle agent {i+1}")
+plt.ylabel("Angles (degrees)")
 plt.xlabel("Time (s)")
-plt.title("Distances between agents")
+plt.title("Angles of the agents")
 plt.legend()
 if save:
-    plt.savefig(f"{figures_dir}/distances.png")
+    plt.savefig(f"{figures_dir}/angles.png")
     plt.close()
 else:
     plt.show()
+# for i in range(n_diff):
+#     plt.plot(t[0:-1],distances[i,0:-1],label=f"Distance agent {i+1}")
+# plt.ylabel("Distances (m)")
+# plt.xlabel("Time (s)")
+# plt.title("Distances between agents")
+# plt.legend()
+# if save:
+#     plt.savefig(f"{figures_dir}/distances.png")
+#     plt.close()
+# else:
+#     plt.show()
 
 for i in range(n_diff):
     plt.plot(t[0:-1],np.rad2deg(phi_diff[i,0:-1]),label=f"Phase difference agent {i+1}")
