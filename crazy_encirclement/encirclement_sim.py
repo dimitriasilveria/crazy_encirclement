@@ -11,7 +11,7 @@ from icecream import ic
 import pandas as pd
 import os
 
-N = 6000
+N =2000
 r = 1
 k_phi = 10
 kx = 20
@@ -55,8 +55,12 @@ angles = np.zeros((3,n_agents,N))
 Wr_r = np.zeros((3,n_agents,N))
 
 agents_r[:, 0, 0] = 1*np.array([r*np.cos(np.deg2rad(0)),r*np.sin(np.deg2rad(0)),0.6]).T
-agents_r[:, 1, 0] = 1*np.array([r*np.cos(np.deg2rad(100)),r*np.sin(np.deg2rad(100)),0.6]).T
+agents_r[:, 1, 0] = 1*np.array([r*np.cos(np.deg2rad(10)),r*np.sin(np.deg2rad(10)),0.6]).T
 agents_r[:, 2, 0] = 1.*np.array([r*np.cos(np.deg2rad(200)),r*np.sin(np.deg2rad(200)) ,0.6]).T
+# agents_r[:, 0, 0] = 1*np.array([r*np.cos(np.deg2rad(0)),r*np.sin(np.deg2rad(0)),0.6]).T
+# agents_r[:, 1, 0] = 1*np.array([r*np.cos(np.deg2rad(120)),r*np.sin(np.deg2rad(120)),0.6]).T
+# agents_r[:, 2, 0] = 1.*np.array([r*np.cos(np.deg2rad(240)),r*np.sin(np.deg2rad(240)) ,0.6]).T
+
 # agents_r[:, 3, 0] = 1.*np.array([r*np.cos(np.deg2rad(290)),r*np.sin(np.deg2rad(290)) ,0.6]).T
 
 ra_r[:,:,0] = agents_r[:,:,0]
@@ -86,7 +90,7 @@ for i in range(0,N-1):
     accels[:,:,i] =  kx*(ra_r[:,:,i+1] - agents_r[:,:,i]) + kv*(va_r[:,:,i+1] - agents_v[:,:,i]) # +
     agents_v[:,:,i+1] = agents_v[:,:,i] + accels[:,:,i]*dt *np.random.uniform(0.2,1.2)
     agents_r[:,:,i+1] = (agents_r[:,:,i] + agents_v[:,:,i]*dt + 0.5*accels[:,:,i]*dt**2)*np.random.uniform(0.99,1.01)
-    #agents_r[:,:,i+1] = target_r_new
+    # agents_r[:,:,i+1] = target_r_new
 
 figures_dir = "figures/"
 os.makedirs(figures_dir, exist_ok=True)

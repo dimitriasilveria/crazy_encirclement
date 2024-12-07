@@ -17,10 +17,46 @@ class Embedding():
         self.initial_phase = np.zeros(self.n)
         self.Rot_des = np.zeros((3,3,self.n))
         self.Rot_act = np.zeros((3,3,self.n))
-        self.scale = 0*self.phi_dot #scale the distortion around the x axis
+        self.scale = self.phi_dot #scale the distortion around the x axis
         self.pass_zero = np.zeros(self.n)
         self.pass_ref = np.zeros(self.n)
-        self.Sep_des = R.from_euler('z', 120, degrees=True).as_matrix()
+        self.Sep_des = R.from_euler('z', -120, degrees=True).as_matrix()
+        self.log_sep_des = logm(self.Sep_des)
+        self.Sep_des_leg = R.from_euler('z', 120, degrees=True).as_matrix()
+        self.log_sep_des_leg = logm(self.Sep_des_leg)
+        # phases_des = np.deg2rad(np.array([40, 120, 270]))
+        phases_des = np.deg2rad(np.array([0, 120, 240]))
+        self.Log_sep_des_k = np.zeros((3,3,self.n))
+        self.Log_sep_des_j = np.zeros((3,3,self.n))
+        self.sep_des_j = np.zeros((3,3,self.n))
+        self.sep_des_k = np.zeros((3,3,self.n))
+        for i in range(self.n):
+            if self.n > 1:
+                phi_i = phases_des[i]
+                if i == 0:
+                    phi_k = phases_des[self.n-1] #ahead
+                    phi_j = phases_des[i+1] #behind
+                elif i == self.n-1:
+                    phi_k = phases_des[i-1]
+                    phi_j = phases_des[0]
+                else:
+                    phi_k = phases_des[i-1]
+                    phi_j = phases_des[i+1]
+            # ic(np.rad2deg([phi_i,phi_j,phi_k]))
+            # input()
+            R_i = R.from_euler('z', phi_i, degrees=False).as_matrix()
+            R_j = R.from_euler('z', phi_j, degrees=False).as_matrix()
+            R_k = R.from_euler('z', phi_k, degrees=False).as_matrix()
+            phi_ki = np.mod(phi_i - phi_k, 2*np.pi)
+            phi_ij = np.mod(phi_i - phi_j, 2*np.pi)
+            # R_ji = R_i.T@R_j
+            R_ij = R_j.T@R_i
+            R_ki = R_i.T@R_k
+            self.Log_sep_des_j[:,:,i] = logm(R_ij)
+            self.Log_sep_des_k[:,:,i] = logm(R_ki)
+            self.sep_des_j[:,:,i] = R_ij
+            self.sep_des_k[:,:,i] = R_ki
+            ic(i,R.from_matrix(R_ij).as_euler('zyx', degrees=True)[0],R.from_matrix(R_ki).as_euler('zyx', degrees=True)[0])
         self.count = 0
         for i in range(self.n):
             self.Rot_des[:,:,i] = np.eye(3)
@@ -113,16 +149,10 @@ class Embedding():
             phi_dot_x = self.calc_wx(phi_d_raw)#*(phi_d-self.phi_des[i])
             phi_dot_y = self.calc_wy(phi_d_raw) #phi_i-phi_prev[i]*
             v_d_hat_x_y = np.array([-phi_dot_x, -phi_dot_y, 0])
-            # ic(np.rad2deg(np.linalg.norm(v_d_hat_x_y)))
-            # input()
-            # ic(i,phi_d,v_d_hat_x_y)
-            # input()
-            Rot_x = expm(R3_so3(v_d_hat_x_y.reshape(-1,1)))
+            self.Rot_des[:,:,i] = expm(R3_so3(v_d_hat_x_y.reshape(-1,1)))
      
 
-            Rot = Rot_x#self.Rot_des[:,:,i]#@Rot_y@Rot_z
-
-            pos_d = Rot@pos_d_hat
+            pos_d = self.Rot_des[:,:,i]@pos_d_hat
             # if i == 1 and not self.pass_ref[i]:
 
             #pos_d = (self.Rot_des[:,:,0].T@pos_d)
@@ -137,6 +167,9 @@ class Embedding():
         # with warnings.catch_warnings(record=True) as w:
         #     warnings.simplefilter("always")  # Ensure all warnings are captured
         k = 0
+        if self.n == 2:
+            distances[0] = np.linalg.norm(target_r[:, 0] - target_r[:, 1])
+            phi_diff[0] = np.abs(self.phi_cur[0] - self.phi_cur[1])
         for i in range(self.n):
             for j in range(i+1, self.n):
                 distances[k] = np.linalg.norm(target_r[:, i] - target_r[:, j])
@@ -154,17 +187,31 @@ class Embedding():
         #return self.scale*np.cos(phi)*np.sin(phi)
     
     def calc_wy(self,phi):
-        return self.scale*np.exp(-np.abs(phi))*np.cos(phi)
+        return 0*self.scale*np.exp(-np.abs(phi))*np.cos(phi)
 
     def phi_dot_desired(self,phi_i, phi_j, phi_k, phi_dot_des, k,i):
-        phi_ki = np.mod(phi_i - phi_k, 2*np.pi)
-        phi_ij = np.mod(phi_j - phi_i, 2*np.pi)
-        R_ij = R.from_euler('z', phi_ij, degrees=False).as_matrix()
-        R_ki = R.from_euler('z', phi_ki, degrees=False).as_matrix()
-        w_pos = so3_R3(logm(R_ij.T) + logm(self.Sep_des))[2]*self.dt
-        w_neg = so3_R3(logm(R_ki.T) - logm(self.Sep_des))[2]*self.dt
-
-        phi_dot_des = 100*(np.linalg.norm(w_pos) + np.linalg.norm(w_neg)) + self.phi_dot
+        # phi_ki = np.mod(phi_i - phi_k, 2*np.pi)
+        # phi_ij = np.mod(phi_j - phi_i, 2*np.pi)
+        R_i = R.from_euler('z', phi_i, degrees=False).as_matrix()
+        R_j = R.from_euler('z', phi_j, degrees=False).as_matrix()
+        R_k = R.from_euler('z', phi_k, degrees=False).as_matrix()
+        # R_ji = R_i.T@R_j
+        R_ij = R_j.T@R_i
+        R_ki = R_i.T@R_k
+        # R_ij = R.from_euler('z', phi_ij, degrees=False).as_matrix()
+        # R_ki = R.from_euler('z', phi_ki, degrees=False).as_matrix()
+        w_pos = so3_R3(logm(R_ij.T) + self.log_sep_des_leg)[2]*self.dt
+        w_neg = so3_R3(logm(R_ki.T) + self.log_sep_des_leg)[2]*self.dt
+        w_diff_ij = so3_R3(logm(R_ij.T))[2]*self.dt
+        w_diff_ki = so3_R3(logm(R_ki.T))[2]*self.dt
+        # ic(i,w_neg)
+        # ic(R.from_matrix(R_ji).as_euler('zyx', degrees=True)[0],R.from_matrix(self.sep_des_j[:,:,i]).as_euler('zyx', degrees=True)[0])
+        # # input()
+        # ic(R.from_matrix(R_ki).as_euler('zyx', degrees=True)[0],R.from_matrix(self.sep_des_k[:,:,i]).as_euler('zyx', degrees=True)[0])
+        # input()
+        # ic(-logm(R_ji) , self.Log_sep_des_j[:,:,i])
+        # ic(logm(R_ki.T) , self.Log_sep_des_k[:,:,i])
+        phi_dot_des = self.phi_dot + 1*(w_neg.real + w_pos.real) + np.clip(0.5/(w_diff_ij.real) - 0.5/(w_diff_ki.real),-0.5,0.5)
 
         return phi_dot_des #(3 * phi_dot_des + k * (phi_ki - phi_ij)) / 3
 
