@@ -11,12 +11,12 @@ from icecream import ic
 import pandas as pd
 import os
 
-N = 2000
+N = 3000
 r = 1
 k_phi = 10
 kx = 20
-kv = 1.5*np.sqrt(2)
-n_agents = 2
+kv = 6.5*np.sqrt(2)
+n_agents = 3
 phi_dot = 0.5#np.deg2rad(35)
 dt = 0.01
 save = False
@@ -56,7 +56,7 @@ Wr_r = np.zeros((3,n_agents,N))
 
 agents_r[:, 0, 0] = 1*np.array([r*np.cos(np.deg2rad(0)),r*np.sin(np.deg2rad(0)),0.6]).T
 agents_r[:, 1, 0] = 1*np.array([r*np.cos(np.deg2rad(10)),r*np.sin(np.deg2rad(10)),0.6]).T
-# agents_r[:, 2, 0] = 1.*np.array([r*np.cos(np.deg2rad(120)),r*np.sin(np.deg2rad(120)) ,0.6]).T
+agents_r[:, 2, 0] = 1.*np.array([r*np.cos(np.deg2rad(20)),r*np.sin(np.deg2rad(20)) ,0.6]).T
 # agents_r[:, 3, 0] = 1.*np.array([r*np.cos(np.deg2rad(290)),r*np.sin(np.deg2rad(290)) ,0.6]).T
 
 ra_r[:,:,0] = agents_r[:,:,0]
@@ -84,7 +84,7 @@ for i in range(0,N-1):
 
 
     accels[:,:,i] =  kx*(ra_r[:,:,i+1] - agents_r[:,:,i]) + kv*(va_r[:,:,i+1] - agents_v[:,:,i]) # +
-    agents_v[:,:,i+1] = agents_v[:,:,i] + accels[:,:,i]*dt *np.random.uniform(0.2,1.2)
+    agents_v[:,:,i+1] = (agents_v[:,:,i] + accels[:,:,i]*dt)*np.random.uniform(0.99,1.01)
     agents_r[:,:,i+1] = (agents_r[:,:,i] + agents_v[:,:,i]*dt + 0.5*accels[:,:,i]*dt**2)*np.random.uniform(0.99,1.01)
     #agents_r[:,:,i+1] = target_r_new
 
@@ -200,17 +200,17 @@ if save:
     plt.close()
 else:
     plt.show()
-# for i in range(n_diff):
-#     plt.plot(t[0:-1],distances[i,0:-1],label=f"Distance agent {i+1}")
-# plt.ylabel("Distances (m)")
-# plt.xlabel("Time (s)")
-# plt.title("Distances between agents")
-# plt.legend()
-# if save:
-#     plt.savefig(f"{figures_dir}/distances.png")
-#     plt.close()
-# else:
-#     plt.show()
+for i in range(n_diff):
+    plt.plot(t[0:-1],distances[i,0:-1],label=f"Distance agent {i+1}")
+plt.ylabel("Distances (m)")
+plt.xlabel("Time (s)")
+plt.title("Distances between agents")
+plt.legend()
+if save:
+    plt.savefig(f"{figures_dir}/distances.png")
+    plt.close()
+else:
+    plt.show()
 
 for i in range(n_diff):
     plt.plot(t[0:-1],np.rad2deg(phi_diff[i,0:-1]),label=f"Phase difference agent {i+1}")
