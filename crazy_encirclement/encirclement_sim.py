@@ -10,8 +10,9 @@ from utils import R3_so3, so3_R3
 from icecream import ic
 import pandas as pd
 import os
+import pickle
 
-N =2500
+N =3000
 r = 1
 k_phi = 10
 kx = 20
@@ -62,7 +63,8 @@ agents_r[:, 2, 0] = 1.*np.array([r*np.cos(np.deg2rad(40)),r*np.sin(np.deg2rad(40
 # agents_r[:, 1, 0] = 1*np.array([r*np.cos(np.deg2rad(120)),r*np.sin(np.deg2rad(120)),0.6]).T
 # agents_r[:, 2, 0] = 1.*np.array([r*np.cos(np.deg2rad(240)),r*np.sin(np.deg2rad(240)) ,0.6]).T
 
-# agents_r[:, 3, 0] = 1.*np.array([r*np.cos(np.deg2rad(290)),r*np.sin(np.deg2rad(290)) ,0.6]).T
+# agents_r[:, 3, 0] = 1.*np.array([r*np.cos(np.deg2rad(70)),r*np.sin(np.deg2rad(70)) ,0.6]).T
+# agents_r[:, 4, 0] = 1.*np.array([r*np.cos(np.deg2rad(75)),r*np.sin(np.deg2rad(75)) ,0.6]).T
 
 ra_r[:,:,0] = agents_r[:,:,0]
 for i in range(n_agents):
@@ -89,8 +91,8 @@ for i in range(0,N-1):
 
 
     accels[:,:,i] =  kx*(ra_r[:,:,i+1] - agents_r[:,:,i]) + kv*(va_r[:,:,i+1] - agents_v[:,:,i]) # +
-    agents_v[:,:,i+1] =( agents_v[:,:,i] + accels[:,:,i]*dt) *np.random.uniform(0.99,1.01)
-    agents_r[:,:,i+1] = (agents_r[:,:,i] + agents_v[:,:,i]*dt + 0.5*accels[:,:,i]*dt**2)*np.random.uniform(0.99,1.01)
+    agents_v[:,:,i+1] =( agents_v[:,:,i] + accels[:,:,i]*dt) #*np.random.uniform(0.99,1.01)
+    agents_r[:,:,i+1] = (agents_r[:,:,i] + agents_v[:,:,i]*dt + 0.5*accels[:,:,i]*dt**2)#*np.random.uniform(0.99,1.01)
     # agents_r[:,:,i+1] = target_r_new
 
 figures_dir = "figures/"
@@ -170,30 +172,30 @@ else:
 #     else:
 #         plt.show()
 
-# for i in range(n_agents):
-#     plt.subplot(3,1,1)
-#     plt.title(f"Positions agent {i+1}")
-#     plt.plot(t[0:-1],ra_r[0,i,0:-1])
-#     plt.plot(t[0:-1],agents_r[0,i,0:-1],linestyle='dashed')
-#     plt.legend(["Desired","Real"])
-#     plt.ylabel("x (m)")
-#     plt.subplot(3,1,2)
-#     plt.plot(t[0:-1],ra_r[1,i,0:-1])
-#     plt.plot(t[0:-1],agents_r[1,i,0:-1],linestyle='dashed')
-#     plt.legend(["Desired","Real"])
-#     plt.ylabel("y (m)")
-#     plt.subplot(3,1,3)
-#     plt.plot(t[0:-1],ra_r[2,i,0:-1])
-#     plt.plot(t[0:-1],agents_r[2,i,0:-1],linestyle='dashed')
-#     plt.legend(["Desired","Real"])
-#     plt.ylabel("z (m)")
-#     plt.xlabel("Time (s)")
+for i in range(n_agents):
+    plt.subplot(3,1,1)
+    plt.title(f"Positions agent {i+1}")
+    plt.plot(t[0:-1],ra_r[0,i,0:-1])
+    plt.plot(t[0:-1],agents_r[0,i,0:-1],linestyle='dashed')
+    plt.legend(["Desired","Real"])
+    plt.ylabel("x (m)")
+    plt.subplot(3,1,2)
+    plt.plot(t[0:-1],ra_r[1,i,0:-1])
+    plt.plot(t[0:-1],agents_r[1,i,0:-1],linestyle='dashed')
+    plt.legend(["Desired","Real"])
+    plt.ylabel("y (m)")
+    plt.subplot(3,1,3)
+    plt.plot(t[0:-1],ra_r[2,i,0:-1])
+    plt.plot(t[0:-1],agents_r[2,i,0:-1],linestyle='dashed')
+    plt.legend(["Desired","Real"])
+    plt.ylabel("z (m)")
+    plt.xlabel("Time (s)")
 
-#     if save:
-#         plt.savefig(f"{figures_dir}/positions_agent_{i+1}.png")
-#         plt.close()
-#     else:
-#         plt.show()
+    if save:
+        plt.savefig(f"{figures_dir}/positions_agent_{i+1}.png")
+        plt.close()
+    else:
+        plt.show()
 for i in range(n_agents):
     plt.plot(t[0:-1],np.rad2deg(phi_cur[i,0:-1]),label=f"Angle agent {i+1}")
 plt.ylabel("Angles (degrees)")
