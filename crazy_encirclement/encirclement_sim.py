@@ -56,8 +56,8 @@ angles = np.zeros((3,n_agents,N))
 Wr_r = np.zeros((3,n_agents,N))
 
 agents_r[:, 0, 0] = 1*np.array([r*np.cos(np.deg2rad(0)),r*np.sin(np.deg2rad(0)),0.6]).T
-agents_r[:, 1, 0] = 1*np.array([r*np.cos(np.deg2rad(10)),r*np.sin(np.deg2rad(10)),0.6]).T
-agents_r[:, 2, 0] = 1.*np.array([r*np.cos(np.deg2rad(20)),r*np.sin(np.deg2rad(20)) ,0.6]).T
+agents_r[:, 1, 0] = 1*np.array([r*np.cos(np.deg2rad(30)),r*np.sin(np.deg2rad(30)),0.6]).T
+agents_r[:, 2, 0] = 1.*np.array([r*np.cos(np.deg2rad(60)),r*np.sin(np.deg2rad(60)) ,0.6]).T
 # agents_r[:, 3, 0] = 1.*np.array([r*np.cos(np.deg2rad(290)),r*np.sin(np.deg2rad(290)) ,0.6]).T
 
 ra_r[:,:,0] = agents_r[:,:,0]
