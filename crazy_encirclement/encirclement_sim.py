@@ -12,7 +12,7 @@ import pandas as pd
 import os
 import pickle
 
-N =4000
+N = 3000
 r = 1
 k_phi = 10
 kx = 20
@@ -56,14 +56,14 @@ f_T_r = np.zeros((n_agents,N))
 angles = np.zeros((3,n_agents,N))
 Wr_r = np.zeros((3,n_agents,N))
 
-agents_r[:, 0, 0] = 1*np.array([r*np.cos(np.deg2rad(0)),r*np.sin(np.deg2rad(0)),0.6]).T
+agents_r[:, 0, 0] = 1*np.array([r*np.cos(np.deg2rad(40)),r*np.sin(np.deg2rad(40)),0.6]).T
 agents_r[:, 1, 0] = 1*np.array([r*np.cos(np.deg2rad(20)),r*np.sin(np.deg2rad(20)),0.6]).T
-agents_r[:, 2, 0] = 1.*np.array([r*np.cos(np.deg2rad(40)),r*np.sin(np.deg2rad(40)) ,0.6]).T
+agents_r[:, 2, 0] = 1.*np.array([r*np.cos(np.deg2rad(10)),r*np.sin(np.deg2rad(10)) ,0.6]).T
 # agents_r[:, 0, 0] = 1*np.array([r*np.cos(np.deg2rad(0)),r*np.sin(np.deg2rad(0)),0.6]).T
-# agents_r[:, 1, 0] = 1*np.array([r*np.cos(np.deg2rad(120)),r*np.sin(np.deg2rad(120)),0.6]).T
-# agents_r[:, 2, 0] = 1.*np.array([r*np.cos(np.deg2rad(240)),r*np.sin(np.deg2rad(240)) ,0.6]).T
+# agents_r[:, 1, 0] = 1*np.array([r*np.cos(np.deg2rad(100)),r*np.sin(np.deg2rad(100)),0.6]).T
+# agents_r[:, 2, 0] = 1.*np.array([r*np.cos(np.deg2rad(200)),r*np.sin(np.deg2rad(200)) ,0.6]).T
 
-# agents_r[:, 3, 0] = 1.*np.array([r*np.cos(np.deg2rad(70)),r*np.sin(np.deg2rad(70)) ,0.6]).T
+# agents_r[:, 3, 0] = 1.*np.array([r*np.cos(np.deg2rad(0)),r*np.sin(np.deg2rad(0)) ,0.6]).T
 # agents_r[:, 4, 0] = 1.*np.array([r*np.cos(np.deg2rad(75)),r*np.sin(np.deg2rad(75)) ,0.6]).T
 
 ra_r[:,:,0] = agents_r[:,:,0]
@@ -79,12 +79,12 @@ for i in range(0,N-1):
 
     #ic(target_r_new)
     phi_cur[:,i+1] = phi_new
-    phi_dot_cur[:,i] = (phi_cur[:,i+1] - phi_cur[:,i])/dt
+    # phi_dot_cur[:,i] = (phi_cur[:,i+1] - phi_cur[:,i])/dt
     ra_r[:,:,i+1] = target_r_new#*np.random.uniform(0.99,1.01)
-    va_r[:,:,i+1] = target_v_new#*np.random.uniform(0.99,1.01)
+    # va_r[:,:,i+1] = target_v_new#*np.random.uniform(0.99,1.01)
 
     va_r[:,:,i+1] = ((ra_r[:,:,i+1] - ra_r[:,:,i])/(dt))#*np.random.uniform(0.8,1.2)
-    va_r_dot[:,:,i] = (va_r[:,:,i+1] - va_r[:,:,i])/dt
+    # va_r_dot[:,:,i] = (va_r[:,:,i+1] - va_r[:,:,i])/dt
     phi_diff[:,i] = phi_diff_new
     distances[:,i] = distances_new
     #ic(va_r[:,:,i+1])
@@ -107,10 +107,10 @@ ax = fig.add_subplot(111, projection='3d')
 legends = []
 for agent in range(n_agents):
     color = colors[agent]
-    ax.plot3D(ra_r[0,agent,0:-1], ra_r[1,agent,0:-1], ra_r[2,agent,0:-1],color=color,label=f"Desired trajectory agent {agent+1}")
+    # ax.plot3D(ra_r[0,agent,0:-1], ra_r[1,agent,0:-1], ra_r[2,agent,0:-1],color=color,label=f"Desired trajectory agent {agent+1}")
     ax.scatter(agents_r[0,agent,0], agents_r[1,agent,0], agents_r[2,agent,0],color=color,marker='o')
     ax.scatter(agents_r[0,agent,-1], agents_r[1,agent,-1], agents_r[2,agent,-1],color='black',marker='o')
-    #ax.plot3D(agents_r[0,agent,1:-1], agents_r[1,agent,1:-1], agents_r[2,agent,1:-1],color=color, linestyle='dashed')
+    ax.plot3D(agents_r[0,agent,1:-1], agents_r[1,agent,1:-1], agents_r[2,agent,1:-1],color=color, linestyle='dashed')
 
     #legends.append(f"Real trajectory agent {agent+1}")
 ax.legend()#, bbox_to_anchor=(1.05, 0.5), loc='center left', borderaxespad=0.)
