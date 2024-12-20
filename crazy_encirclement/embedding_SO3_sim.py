@@ -17,8 +17,8 @@ class Embedding():
         self.initial_phase = np.zeros(self.n)
         self.Rot_des = np.zeros((3,3,self.n))
         self.Rot_act = np.zeros((3,3,self.n))
-        self.scale = 0.35 #scale the distortion around the x axis
-        self.hover_height = 0.7
+        self.scale = 0.3 #scale the distortion around the x axis
+        self.hover_height = 0.8
         self.count = 0
         for i in range(self.n):
             self.Rot_des[:,:,i] = np.eye(3)
@@ -160,8 +160,12 @@ class Embedding():
 
         w_diff_ij = so3_R3(logm(R_ji.T))[2]
         w_diff_ki = so3_R3(logm(R_ki.T))[2]
+        if w_diff_ij == 0:
+            w_diff_ij = 0.0001
+        if w_diff_ki == 0:
+            w_diff_ki = 0.0001
 
-        phi_dot_des = self.phi_dot +  np.clip((5/self.dt)*(1/(w_diff_ij.real) + 1/(w_diff_ki.real)),-0.5,0.5) # 0.1*(w_neg.real + w_pos.real) #+ np.clip(-0.5/(w_diff_ij.real) + 0.5/(w_diff_ki.real),-0.5,0.5)
+        phi_dot_des = self.phi_dot +  np.clip((k/self.dt)*(1/(w_diff_ij.real) + 1/(w_diff_ki.real)),-0.5,0.5) # 0.1*(w_neg.real + w_pos.real) #+ np.clip(-0.5/(w_diff_ij.real) + 0.5/(w_diff_ki.real),-0.5,0.5)
 
 
         return phi_dot_des

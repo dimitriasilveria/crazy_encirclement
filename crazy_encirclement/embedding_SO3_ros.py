@@ -14,7 +14,7 @@ class Embedding():
         self.hover_height = hover_height
         self.n = n_agents
         self.dt = dt
-        self.scale = self.phi_dot #scale the distortion around the x axis
+        self.scale = 0.3 #scale the distortion around the x axis
         self.Rot = np.zeros((3,3))
         self.pass_zero = False
         self.pass_ref = False
@@ -45,7 +45,7 @@ class Embedding():
         phi_k = phi_prev[0]
         phi_j = phi_prev[1]
         #wd = self.phi_dot
-        wd = self.phi_dot_desired(phi_i, phi_j, phi_k, self.phi_dot, self.k_phi)
+        wd = 0.5*self.phi_dot_desired(phi_i, phi_j, phi_k, self.phi_dot, self.k_phi)
             #first evolve the agent in phase
         v_d_hat_z = np.array([0, 0, wd])
         x = self.r * np.cos(phi_i)
@@ -73,7 +73,7 @@ class Embedding():
         self.target_v = (self.target_r - target_r_old)/(self.dt)
 
             
-        return phi_i, self.target_r, self.target_v, phi_i
+        return phi_i, self.target_r, self.target_v, phi_i, wd
     
     def calc_wx(self,phi):
         return self.scale*(np.sin(phi)*np.cos(phi)-np.sin(phi)**3)
@@ -92,11 +92,19 @@ class Embedding():
 
         w_diff_ij = so3_R3(logm(R_ji.T))[2]
         w_diff_ki = so3_R3(logm(R_ki.T))[2]
+        if w_diff_ij == 0:
+            w_diff_ij = 0.0001
+        if w_diff_ki == 0:
+            w_diff_ki = 0.0001
 
-        phi_dot_des = self.phi_dot +  np.clip((k/self.dt)*(1/(w_diff_ij.real) + 1/(w_diff_ki.real)),-0.5,0.5) # 0.1*(w_neg.real + w_pos.real) #+ np.clip(-0.5/(w_diff_ij.real) + 0.5/(w_diff_ki.real),-0.5,0.5)
+
+        phi_dot_des = np.clip((k/self.dt)*(1/(w_diff_ij.real) + 1/(w_diff_ki.real)),-0.5,0.5) #self.phi_dot +  
 
 
         return phi_dot_des
+        # phi_ki = np.mod(phi_i - phi_k, 2*np.pi)
+        # phi_ij = np.mod(phi_j - phi_i, 2*np.pi)
+        # return (3 * phi_dot_des + k * (phi_ki - phi_ij)) / 3
 
 
     def cart2pol(self,pos_rot):

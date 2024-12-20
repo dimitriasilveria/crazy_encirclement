@@ -48,8 +48,8 @@ class AgentsOrder(Node):
 
         self.order_publisher = self.create_publisher(StringArray, '/agents_order', 10)
         self.phase_pub = []
-        for robot in self.order.data:
-            self.phase_pub.append(self.create_publisher(Float32MultiArray,'/'+ robot + '/phases', 1))
+        # for robot in self.order.data:
+        #     self.phase_pub.append(self.create_publisher(Float32MultiArray,'/'+ robot + '/phases', 1))
 
         # for robot in self.order.data:
         #     self.create_subscription(Float32, '/'+ robot + '/phase', partial(self._phase_callback,robot), 1)
@@ -61,25 +61,25 @@ class AgentsOrder(Node):
         try:
             self.order_publisher.publish(self.order)   
             order = self.order.data 
-            for robot in order:
-                phases_this_robot = Float32MultiArray()
-                i = order.index(robot)
-                if self.n_agents > 2:
-                    if i == 0:
-                        phases_this_robot.data = [self.phases[-1],self.phases[i],self.phases[i+1]]
-                    elif i == (len(order)-1):
-                        phases_this_robot.data = [self.phases[i-1],self.phases[i],self.phases[0]]
-                    else:
-                        phases_this_robot.data = [self.phases[i-1],self.phases[i],self.phases[i+1]]
-                else: 
-                    #TO DO: 
-                    # check what to do with 2 agents ###################
-                    if i == 1:
-                        phases_this_robot.data = [self.phases[i-1],self.phases[i],self.phases[i-1]]
-                    else:
-                        phases_this_robot.data = [self.phases[i+1],self.phases[i],self.phases[i+1]]
-                self.phase_pub[i].publish(phases_this_robot)
-                self.info(f"phases agent {i+1}: {phases_this_robot}")
+            # for robot in order:
+            #     phases_this_robot = Float32MultiArray()
+            #     i = order.index(robot)
+            #     if self.n_agents > 2:
+            #         if i == 0:
+            #             phases_this_robot.data = [self.phases[-1],self.phases[i],self.phases[i+1]]
+            #         elif i == (len(order)-1):
+            #             phases_this_robot.data = [self.phases[i-1],self.phases[i],self.phases[0]]
+            #         else:
+            #             phases_this_robot.data = [self.phases[i-1],self.phases[i],self.phases[i+1]]
+            #     else: 
+            #         #TO DO: 
+            #         # check what to do with 2 agents ###################
+            #         if i == 1:
+            #             phases_this_robot.data = [self.phases[i-1],self.phases[i],self.phases[i-1]]
+            #         else:
+            #             phases_this_robot.data = [self.phases[i+1],self.phases[i],self.phases[i+1]]
+            #     self.phase_pub[i].publish(phases_this_robot)
+            #     #self.info(f"phases agent {i+1}: {phases_this_robot}")
 
         except KeyboardInterrupt:
             self.info('Exiting node...')
@@ -100,7 +100,8 @@ class AgentsOrder(Node):
                 if pose.name in self.robots:
                     self.initial_phases[str(pose.name)] = np.mod(np.arctan2(pose.pose.position.y, pose.pose.position.x),2*np.pi)
             
-            self.order.data = sorted(self.initial_phases, key=lambda x: self.initial_phases[x],reverse=False)
+            self.order.data = sorted(self.initial_phases, key=lambda x: self.initial_phases[x],reverse=True)
+            self.get_logger().info(f'Phases of agents: {self.initial_phases}')
             self.get_logger().info(f'Order of agents: {self.order.data}')
             self.has_order = True         
             self.info(f'Order of agents: {self.order}')    
@@ -112,36 +113,36 @@ class AgentsOrder(Node):
                     self.phases[i] = phi_i
 
 
-    def _phase_callback(self, robot, msg):
-        """
-        Callback to the phase topic to send through the
-           current phase of the agent
-        """
-        self.get_logger().info(f'Phase of {robot}: {msg}')
-        self.get_logger().info(f'Order of agents: {self.order}')
-        order = self.order.data
-        if self.has_order:
-            self.phases[order.index(robot)] = msg.data
-            phases_this_robot = Float32MultiArray()
-            for i in range(len(order)):
+    # def _phase_callback(self, robot, msg):
+    #     """
+    #     Callback to the phase topic to send through the
+    #        current phase of the agent
+    #     """
+    #     self.get_logger().info(f'Phase of {robot}: {msg}')
+    #     self.get_logger().info(f'Order of agents: {self.order}')
+    #     order = self.order.data
+    #     if self.has_order:
+    #         self.phases[order.index(robot)] = msg.data
+    #         phases_this_robot = Float32MultiArray()
+    #         for i in range(len(order)):
 
-                if order[i] == robot:
-                    # self.has_order = True
-                    if self.n_agents > 2:
-                        if i == 0:
-                            phases_this_robot.data = [self.phases[-1],self.phases[i],self.phases[i+1]]
-                        elif i == (len(order)-1):
-                            phases_this_robot.data = [self.phases[i-1],self.phases[i],self.phases[0]]
-                        else:
-                            phases_this_robot.data = [self.phases[i-1],self.phases[i],self.phases[i+1]]
-                    else: 
-                        #TO DO: check what to do with 2 agents ###################
-                        if i == 1:
-                            phases_this_robot.data = [self.phases[i-1],self.phases[i],self.phases[i-1]]
-                        else:
-                            phases_this_robot.data = [self.phases[i+1],self.phases[i],self.phases[i+1]]
-                    self.phase_pub[i].publish(phases_this_robot)
-                    self.info(f"Order of agents: {phases_this_robot}")
+    #             if order[i] == robot:
+    #                 # self.has_order = True
+    #                 if self.n_agents > 2:
+    #                     if i == 0:
+    #                         phases_this_robot.data = [self.phases[-1],self.phases[i],self.phases[i+1]]
+    #                     elif i == (len(order)-1):
+    #                         phases_this_robot.data = [self.phases[i-1],self.phases[i],self.phases[0]]
+    #                     else:
+    #                         phases_this_robot.data = [self.phases[i-1],self.phases[i],self.phases[i+1]]
+    #                 else: 
+    #                     #TO DO: check what to do with 2 agents ###################
+    #                     if i == 1:
+    #                         phases_this_robot.data = [self.phases[i-1],self.phases[i],self.phases[i-1]]
+    #                     else:
+    #                         phases_this_robot.data = [self.phases[i+1],self.phases[i],self.phases[i+1]]
+    #                 self.phase_pub[i].publish(phases_this_robot)
+    #                 self.info(f"Order of agents: {phases_this_robot}")
 
 def main():
     rclpy.init()

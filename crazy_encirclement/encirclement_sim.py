@@ -12,9 +12,9 @@ import pandas as pd
 import os
 import pickle
 
-N = 600
+N = 300
 r = 1
-k_phi = 10
+k_phi = 5
 kx = 2
 kv = 2.5*np.sqrt(2)
 n_agents = 3
