@@ -12,14 +12,14 @@ import pandas as pd
 import os
 import pickle 
 
-N = 4000
+N = 2000
 r = 1
-k_phi = 10
-kx = 20
+k_phi = 2
+kx = 5
 kv = 6.5*np.sqrt(2)
 n_agents = 3
-phi_dot = 0.5#np.deg2rad(35)
-dt = 0.01
+phi_dot = 0.6#np.deg2rad(35)
+dt = 0.1
 save = False
 
 mb = 0.04
@@ -55,9 +55,9 @@ f_T_r = np.zeros((n_agents,N))
 angles = np.zeros((3,n_agents,N))
 Wr_r = np.zeros((3,n_agents,N))
 
-agents_r[:, 0, 0] = 1*np.array([r*np.cos(np.deg2rad(0)),r*np.sin(np.deg2rad(0)),0.6]).T
-agents_r[:, 1, 0] = 1*np.array([r*np.cos(np.deg2rad(30)),r*np.sin(np.deg2rad(30)),0.6]).T
-agents_r[:, 2, 0] = 1.*np.array([r*np.cos(np.deg2rad(60)),r*np.sin(np.deg2rad(60)) ,0.6]).T
+agents_r[:, 0, 0] = 1*np.array([r*np.cos(np.deg2rad(100)),r*np.sin(np.deg2rad(100)),0.6]).T
+agents_r[:, 1, 0] = 1*np.array([r*np.cos(np.deg2rad(100)),r*np.sin(np.deg2rad(100)),0.6]).T
+agents_r[:, 2, 0] = 1.*np.array([r*np.cos(np.deg2rad(100)),r*np.sin(np.deg2rad(100)) ,0.6]).T
 # agents_r[:, 3, 0] = 1.*np.array([r*np.cos(np.deg2rad(290)),r*np.sin(np.deg2rad(290)) ,0.6]).T
 
 ra_r[:,:,0] = agents_r[:,:,0]
@@ -83,9 +83,8 @@ for i in range(0,N-1):
     distances[:,i] = distances_new
     #ic(va_r[:,:,i+1])
 
-
     accels[:,:,i] =  kx*(ra_r[:,:,i+1] - agents_r[:,:,i]) + kv*(va_r[:,:,i+1] - agents_v[:,:,i]) # +
-    agents_v[:,:,i+1] = (agents_v[:,:,i] + accels[:,:,i]*dt)*np.random.uniform(0.99,1.01)
+    agents_v[:,:,i+1] =( agents_v[:,:,i] + accels[:,:,i]*dt)*np.random.uniform(0.99,1.01)
     agents_r[:,:,i+1] = (agents_r[:,:,i] + agents_v[:,:,i]*dt + 0.5*accels[:,:,i]*dt**2)*np.random.uniform(0.99,1.01)
     #agents_r[:,:,i+1] = target_r_new
 
