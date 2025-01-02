@@ -165,7 +165,7 @@ class Embedding():
         if w_diff_ki == 0:
             w_diff_ki = 0.0001
 
-        phi_dot_des = self.phi_dot +  np.clip((k/self.dt)*(1/(w_diff_ij.real) + 1/(w_diff_ki.real)),-0.5,0.5) # 0.1*(w_neg.real + w_pos.real) #+ np.clip(-0.5/(w_diff_ij.real) + 0.5/(w_diff_ki.real),-0.5,0.5)
+        phi_dot_des = self.phi_dot +  np.clip(k*(1/(w_diff_ij.real) + 1/(w_diff_ki.real)),-0.5,0.5) # 0.1*(w_neg.real + w_pos.real) #+ np.clip(-0.5/(w_diff_ij.real) + 0.5/(w_diff_ki.real),-0.5,0.5)
 
 
         return phi_dot_des

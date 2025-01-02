@@ -12,15 +12,15 @@ import pandas as pd
 import os
 import pickle
 
-N = 300
-r = 1
-k_phi = 5
-kx = 2
-kv = 2.5*np.sqrt(2)
+N = 200
+r = 1.2
+k_phi = 15
+kx = 5
+kv = 6.5*np.sqrt(2)
 n_agents = 3
-phi_dot = 0.5#np.deg2rad(35)
+phi_dot = 0.6#np.deg2rad(35)
 dt = 0.1
-save = False
+save = True
 
 mb = 0.04
 g = 9.81
@@ -35,7 +35,7 @@ ra_r = np.zeros((3,n_agents,N))
 va_r = np.zeros((3,n_agents,N))
 va_r_dot = np.zeros((3,n_agents,N))
 accels = np.zeros((3,n_agents,N))
-phi_cur = np.zeros((n_agents, N))
+phi_cur = np.zeros((n_agents, N))    
 phi_dot_cur = np.zeros((n_agents, N))
 
 agents_r = np.zeros((3,n_agents, N))
@@ -105,18 +105,18 @@ colors = plt.cm.viridis(np.linspace(0, 1, n_agents))
 fig = plt.figure()
 ax = fig.add_subplot(111, projection='3d')
 legends = []
-for agent in range(n_agents):
+for agent in range(1):
     color = colors[agent]
-    # ax.plot3D(ra_r[0,agent,0:-1], ra_r[1,agent,0:-1], ra_r[2,agent,0:-1],color=color,label=f"Desired trajectory agent {agent+1}")
-    ax.scatter(agents_r[0,agent,0], agents_r[1,agent,0], agents_r[2,agent,0],color=color,marker='o')
-    ax.scatter(agents_r[0,agent,-1], agents_r[1,agent,-1], agents_r[2,agent,-1],color='black',marker='o')
-    ax.plot3D(agents_r[0,agent,1:-1], agents_r[1,agent,1:-1], agents_r[2,agent,1:-1],color=color, linestyle='dashed')
+    ax.plot3D(ra_r[0,agent,0:-1], ra_r[1,agent,0:-1], ra_r[2,agent,0:-1],color=color,label=f"Desired trajectory agent {agent+1}")
+    # ax.scatter(agents_r[0,agent,0], agents_r[1,agent,0], agents_r[2,agent,0],color=color,marker='o')
+    # ax.scatter(agents_r[0,agent,-1], agents_r[1,agent,-1], agents_r[2,agent,-1],color='black',marker='o')
+    ax.plot3D(agents_r[0,agent,1:-1], agents_r[1,agent,1:-1], agents_r[2,agent,1:-1],color=color, linestyle='dashed', label=f"Real trajectory agent {agent+1}")
 
     #legends.append(f"Real trajectory agent {agent+1}")
 ax.legend()#, bbox_to_anchor=(1.05, 0.5), loc='center left', borderaxespad=0.)
-ax.set_xlabel('X Axis')
-ax.set_ylabel('Y Axis')
-ax.set_zlabel('Z Axis')
+ax.set_xlabel('X Axis (m)')
+ax.set_ylabel('Y Axis (m)')
+ax.set_zlabel('Z Axis (m)')
 # ax.set_zlim(0.59,0.61)
 #ax.view_init(elev=90, azim=-90)
 
@@ -132,7 +132,7 @@ if save:
         (30, 270),  # Side view, right
         (60, 315)   # High angle, front-right
     ]
-
+    plt.savefig(f"{figures_dir}/3_agents_SO3_default_view.png", bbox_inches='tight', pad_inches=0.1)
     # Save the plot from each perspective
     for j, (elev, azim) in enumerate(angles):
         ax.view_init(elev=elev, azim=azim)  # Set the view
@@ -185,12 +185,12 @@ for i in range(n_agents):
     plt.subplot(3,1,2)
     plt.plot(t[0:-1],ra_r[1,i,0:-1])
     plt.plot(t[0:-1],agents_r[1,i,0:-1],linestyle='dashed')
-    plt.legend(["Desired","Real"])
+    
     plt.ylabel("y (m)")
     plt.subplot(3,1,3)
     plt.plot(t[0:-1],ra_r[2,i,0:-1])
     plt.plot(t[0:-1],agents_r[2,i,0:-1],linestyle='dashed')
-    plt.legend(["Desired","Real"])
+
     plt.ylabel("z (m)")
     plt.xlabel("Time (s)")
 

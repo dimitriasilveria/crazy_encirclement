@@ -6,11 +6,10 @@ from crazy_encirclement.utils2 import R3_so3, so3_R3
 from scipy.linalg import expm, logm
 from icecream import ic
 class Embedding():
-    def __init__(self,r,phi_dot,k_phi,tactic,n_agents,initial_pos,hover_height,dt,multiplier):
+    def __init__(self,r,phi_dot,k_phi,n_agents,initial_pos,hover_height,dt,multiplier):
         self.phi_dot = phi_dot
         self.r = r
         self.k_phi = k_phi
-        self.tactic = tactic
         self.hover_height = hover_height
         self.n = n_agents
         self.dt = dt
@@ -43,9 +42,9 @@ class Embedding():
         #pos_x, pos_y, _ = pos_rot.parts[1:]  # Ignoring the scalar part
 
         phi_k = phi_prev[0]
-        phi_j = phi_prev[1]
+        phi_j = phi_prev[2]
         #wd = self.phi_dot
-        wd = 0.5*self.phi_dot_desired(phi_i, phi_j, phi_k, self.phi_dot, self.k_phi)
+        wd = self.phi_dot_desired(phi_i, phi_j, phi_k, self.phi_dot, self.k_phi)
             #first evolve the agent in phase
         v_d_hat_z = np.array([0, 0, wd])
         x = self.r * np.cos(phi_i)
