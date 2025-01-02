@@ -14,7 +14,7 @@ import pickle
 
 N = 2000
 r = 1
-k_phi = 2
+k_phi = 5
 kx = 5
 kv = 6.5*np.sqrt(2)
 n_agents = 3
@@ -55,9 +55,9 @@ f_T_r = np.zeros((n_agents,N))
 angles = np.zeros((3,n_agents,N))
 Wr_r = np.zeros((3,n_agents,N))
 
-agents_r[:, 0, 0] = 1*np.array([r*np.cos(np.deg2rad(100)),r*np.sin(np.deg2rad(100)),0.6]).T
+agents_r[:, 0, 0] = 1*np.array([r*np.cos(np.deg2rad(10)),r*np.sin(np.deg2rad(10)),0.6]).T
 agents_r[:, 1, 0] = 1*np.array([r*np.cos(np.deg2rad(100)),r*np.sin(np.deg2rad(100)),0.6]).T
-agents_r[:, 2, 0] = 1.*np.array([r*np.cos(np.deg2rad(100)),r*np.sin(np.deg2rad(100)) ,0.6]).T
+agents_r[:, 2, 0] = 1.*np.array([r*np.cos(np.deg2rad(200)),r*np.sin(np.deg2rad(200)) ,0.6]).T
 # agents_r[:, 3, 0] = 1.*np.array([r*np.cos(np.deg2rad(290)),r*np.sin(np.deg2rad(290)) ,0.6]).T
 
 ra_r[:,:,0] = agents_r[:,:,0]
