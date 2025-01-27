@@ -18,6 +18,10 @@ from scipy.spatial.transform import Rotation as R
 
 class Circle_distortion(Node):
     def __init__(self):
+        """
+            Node that sends the crazyflie to a desired position
+            The desired position comes from the distortion of a circle
+        """
         super().__init__('circle_distortion')
         self.info = self.get_logger().info
         self.info('Circle distortion node has been started.')
