@@ -17,7 +17,7 @@ class Embedding():
         self.initial_phase = np.zeros(self.n)
         self.Rot_des = np.zeros((3,3,self.n))
         self.Rot_act = np.zeros((3,3,self.n))
-        self.scale = 0.4 #scale the distortion around the x axis
+        self.scale = 0.3 #scale the distortion around the x axis
         self.hover_height = 0.8
         self.count = 0
         for i in range(self.n):

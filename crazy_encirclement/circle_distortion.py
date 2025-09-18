@@ -25,10 +25,10 @@ class Circle_distortion(Node):
         super().__init__('circle_distortion')
         self.info = self.get_logger().info
         self.info('Circle distortion node has been started.')
-        self.declare_parameter('r', '1.2')
+        self.declare_parameter('r', '1.')
         self.declare_parameter('robot', 'C20')
-        self.declare_parameter('number_of_agents', '3')
-        self.declare_parameter('phi_dot', '0.6')
+        self.declare_parameter('number_of_agents', '5')
+        self.declare_parameter('phi_dot', '0.8')
   
         self.robot = self.get_parameter('robot').value
         self.n_agents  = int(self.get_parameter('number_of_agents').value)
@@ -51,7 +51,7 @@ class Circle_distortion(Node):
         self.final_pose = np.zeros(3)
         self.agents_r = np.zeros(3)
         self.initial_pose = np.zeros(3)
-        self.hover_height = 0.8
+        self.hover_height = 0.9
         self.target_a = np.zeros(3)
         self.leader = None
         self.follower = None
@@ -175,7 +175,7 @@ class Circle_distortion(Node):
                 # phi, target_r, target_v, phi_dot_x, wd = self.embedding.targets(self.agents_r,self.phases)
                 pos = np.array([self.agents_r[0], self.agents_r[1], self.agents_r[2]-self.hover_height])
                 
-                pos_rot = np.linalg.inv(self.Rot_des)@pos.T
+                pos_rot = self.Rot_des.T@pos.T
                 phi_i, _ = self.embedding.cart2pol(pos_rot)
                 self.phi_cur.data = float(phi_i)
                 self.phase_pub.publish(self.phi_cur)

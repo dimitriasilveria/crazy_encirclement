@@ -13,7 +13,7 @@ class Embedding():
         self.hover_height = hover_height
         self.n = n_agents
         self.dt = dt
-        self.scale = 0.3 #scale the distortion around the x axis
+        self.scale = 0.4 #scale the distortion around the x axis
         self.Rot = np.zeros((3,3))
         self.pass_zero = False
         self.pass_ref = False
@@ -97,7 +97,7 @@ class Embedding():
             w_diff_ki = 0.0001
 
 
-        phi_dot_des = np.clip((k/self.dt)*(1/(w_diff_ij.real) + 1/(w_diff_ki.real)),-0.5,0.5) #self.phi_dot +  
+        phi_dot_des = np.clip(self.phi_dot +  k*(1/(w_diff_ij.real) + 1/(w_diff_ki.real)),-self.phi_dot,2*self.phi_dot) #self.phi_dot +  
 
 
         return phi_dot_des

@@ -23,7 +23,7 @@ class AgentsOrder(Node):
         super().__init__('encirclement')
         self.info = self.get_logger().info
         self.info('Agents order node has been started.')
-        self.declare_parameter('robot_data', ['C04', 'C20', 'C05']) 
+        self.declare_parameter('robot_data', ['C04', 'C13', 'C05','C14','C20']) 
 
         self.robots = self.get_parameter('robot_data').value
         self.n_agents  = len(self.robots)
@@ -104,7 +104,7 @@ class AgentsOrder(Node):
             self.get_logger().info(f'Phases of agents: {self.initial_phases}')
             self.get_logger().info(f'Order of agents: {self.order.data}')
             self.has_order = True         
-            self.info(f'Order of agents: {self.order}')    
+            self.info(f'Order of agents: {self.order}, robots: {self.robots}')    
         else:
             for pose in msg.poses:
                 if pose.name in self.robots:
