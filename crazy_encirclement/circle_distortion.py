@@ -27,7 +27,7 @@ class Circle_distortion(Node):
         self.info('Circle distortion node has been started.')
         self.declare_parameter('r', '1.')
         self.declare_parameter('robot', 'C20')
-        self.declare_parameter('number_of_agents', '5')
+        self.declare_parameter('number_of_agents', '4')
         self.declare_parameter('phi_dot', '0.8')
   
         self.robot = self.get_parameter('robot').value
@@ -61,6 +61,7 @@ class Circle_distortion(Node):
 
         self.i_landing = 0
         self.i_takeoff = 0
+        self.get_logger().info(f"Number of agents: {self.n_agents}")
         if self.n_agents > 1:
             self.phases = np.zeros(self.n_agents)
         else:
@@ -114,25 +115,29 @@ class Circle_distortion(Node):
                 rclpy.spin_once(self, timeout_sec=0.1)
 
         self.info(f"Initial pose: {self.initial_pose}")
-
-        self.create_subscription(Float32, '/'+ self.leader + '/phase', self._phase_callback_leader, 1)
-        self.create_subscription(Float32, '/'+ self.follower + '/phase', self._phase_callback_follower, 1)
         self.phi_cur.data = self.initial_phase
-        while (self.phases[0] == 0):
-            self.phase_pub.publish(self.phi_cur)
-            rclpy.spin_once(self, timeout_sec=0.1)
+        if self.n_agents > 1:
+            self.create_subscription(Float32, '/'+ self.leader + '/phase', self._phase_callback_leader, 1)
+            self.create_subscription(Float32, '/'+ self.follower + '/phase', self._phase_callback_follower, 1)
+        
+            while (self.phases[0] == 0):
+                self.phase_pub.publish(self.phi_cur)
+                rclpy.spin_once(self, timeout_sec=0.1)
 
-        while (self.phases[2] == 0):
-            self.phase_pub.publish(self.phi_cur)
-            rclpy.spin_once(self, timeout_sec=0.1)
+            while (self.phases[2] == 0):
+                self.phase_pub.publish(self.phi_cur)
+                rclpy.spin_once(self, timeout_sec=0.1)
 
         self.info(f"agents phases: {self.phases}")
         self.wd = Float32()
+        self.phi_diff = Float32()
         
         self.position_pub = self.create_publisher(Position,'/'+ self.robot + '/cmd_position', 10)
         # self.full_state_pub = self.create_publisher(FullState,'/'+ self.robot + '/full_state', 10)
         # self.attitude_thrust_pub = self.create_publisher(Twist,'/'+ self.robot + '/vel_legacy', 100)
         self.publisher_w = self.create_publisher(Float32,'/'+ self.robot + '/omega_d', 10)
+        self.publish_phi_diff = self.create_publisher(Float32,'/'+ self.robot + '/phi_diff', 10)
+
         self.publisher_w.publish(self.wd)
         #initiating some variables
 
@@ -163,6 +168,12 @@ class Circle_distortion(Node):
 
             elif not self.has_taken_off and not self.has_landed:
                 self.takeoff()
+                phi_k = self.phases[0]
+                phi_i = self.phases[1]
+                unit_i = np.array([np.cos(phi_i), np.sin(phi_i), 0])
+                unit_k = np.array([np.cos(phi_k), np.sin(phi_k), 0])
+                self.phi_diff.data = np.arccos(np.dot(unit_i,unit_k))
+                self.publish_phi_diff.publish(self.phi_diff)
 
             elif (not self.has_hovered) and (self.has_taken_off) and not self.has_landed:
                 self.hover()   
@@ -186,6 +197,11 @@ class Circle_distortion(Node):
 
                 phi_k = self.phases[0]
                 phi_j = self.phases[2]
+                unit_i = np.array([np.cos(phi_i), np.sin(phi_i), 0])
+                unit_k = np.array([np.cos(phi_k), np.sin(phi_k), 0])
+                #calculate the phase difference with respect to the leader
+                self.phi_diff.data = np.arccos(np.dot(unit_i,unit_k))
+                self.publish_phi_diff.publish(self.phi_diff)
                 #wd = self.phi_dot
                 wd = self.embedding.phi_dot_desired(phi_i, phi_j, phi_k, self.phi_dot, self.k_phi)
                     #first evolve the agent in phase
@@ -215,9 +231,6 @@ class Circle_distortion(Node):
                 self.wd.data = wd
                 self.publisher_w.publish(self.wd)
                 
-
-
-
                 self.next_point(self.target_r)
 
 
@@ -311,7 +324,7 @@ class Circle_distortion(Node):
 
     def landing_traj(self,t_max):
         #landing trajectory
-        self.t_landing = np.arange(t_max,1,-self.timer_period)
+        self.t_landing = np.arange(t_max,0.1,-self.timer_period)
         self.i_landing = 0
         self.r_landing = np.zeros((3,len(self.t_landing)))
         self.r_landing[2,:] = self.hover_height*(self.t_landing/t_max)
