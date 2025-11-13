@@ -48,6 +48,8 @@ class Circle_distortion(Node):
         self.land_flag = False
         self.encircle_flag = False
         self.has_order = False
+        self.has_phase_follower = False
+        self.has_phase_leader = False
         self.final_pose = np.zeros(3)
         self.current_pos = np.zeros(3)
         self.initial_pose = np.zeros(3)
@@ -86,22 +88,19 @@ class Circle_distortion(Node):
             self._poses_changed, 10
         )
                 
-        while (not self.has_initial_pose):
+        while (not self.has_order):
             rclpy.spin_once(self, timeout_sec=0.1)
-
-        self.info(f"Initial pose: {self.initial_pose}")
-        self.phi_cur.data = self.initial_phase
 
         self.create_subscription(Float32, '/'+ self.leader + '/phase', self._phase_callback_leader, 1)
         self.create_subscription(Float32, '/'+ self.follower + '/phase', self._phase_callback_follower, 1)
     
-        while (self.phases[0] == 0):
-            self.phase_pub.publish(self.phi_cur)
-            rclpy.spin_once(self, timeout_sec=0.1)
+        # while (self.phases[0] == 0):
+        #     self.phase_pub.publish(self.phi_cur)
+        #     rclpy.spin_once(self, timeout_sec=0.1)
 
-        while (self.phases[2] == 0):
-            self.phase_pub.publish(self.phi_cur)
-            rclpy.spin_once(self, timeout_sec=0.1)
+        # while (self.phases[2] == 0):
+        #     self.phase_pub.publish(self.phi_cur)
+        #     rclpy.spin_once(self, timeout_sec=0.1)
 
         self.info(f"agents phases: {self.phases}")
         self.wd = Float32()
@@ -141,14 +140,15 @@ class Circle_distortion(Node):
                 self.hover() 
             
             elif self.state = 2: 
-                phi, target_r, wd, phi_diff = self.embedding.targets(self.current_pos,self.phases)
-                self.phi_diff.data = phi_diff
-                self.publish_phi_diff.publish(self.phi_diff)
-                self.phi_cur.data = float(phi_i)
-                self.phase_pub.publish(self.phi_cur)
-                self.wd.data = wd
-                self.publisher_w.publish(self.wd)
-                self.send_position(self.target_r)
+                if self.has_phase_follower and self.has_phase_leader
+                    phi, target_r, wd, phi_diff = self.embedding.targets(self.current_pos,self.phases)
+                    self.phi_diff.data = phi_diff
+                    self.publish_phi_diff.publish(self.phi_diff)
+                    self.phi_cur.data = float(phi_i)
+                    self.phase_pub.publish(self.phi_cur)
+                    self.wd.data = wd
+                    self.publisher_w.publish(self.wd)
+                    self.send_position(self.target_r)
             
             elif self.state == 3:
                 if self.has_final:
@@ -165,7 +165,6 @@ class Circle_distortion(Node):
                         self.destroy_node()
                         rclpy.shutdown()             
         except KeyboardInterrupt:
-            self.landing()
             self.info('Exiting open loop command node')
 
             #self.publishers[i].publish(msg)
@@ -204,13 +203,14 @@ class Circle_distortion(Node):
             self.has_final = True
 
     def _phase_callback_leader(self, msg):
+        self.has_phase_leader = True
         if msg.data:
             self.phases[0] = msg.data
 
     def _phase_callback_follower(self, msg):
+        self.has_phase_follower = True
         if msg.data:
             self.phases[2] = msg.data
-        
 
     def _order_callback(self, msg):
         if not self.has_order:
