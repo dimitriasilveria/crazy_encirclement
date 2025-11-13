@@ -8,6 +8,7 @@ from launch.conditions import LaunchConfigurationEquals
 from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration, PythonExpression
 
+
 def parse_yaml(context):
     # Load the crazyflies YAML file
     crazyflies_yaml = LaunchConfiguration('crazyflies_yaml_file').perform(context)
@@ -52,7 +53,7 @@ def parse_yaml(context):
     # copy relevent settings to server params
     server_params[1]['poses_qos_deadline'] = motion_capture_params['topics']['poses']['qos']['deadline']
     Nodes = []
-    Nodes.append( Node(
+    Nodes.append(Node(
             package='motion_capture_tracking',
             executable='motion_capture_tracking_node',
             condition=IfCondition(PythonExpression(["'", LaunchConfiguration('backend'), "' != 'sim' and '", LaunchConfiguration('mocap'), "' == 'True'"])),
@@ -78,7 +79,7 @@ def parse_yaml(context):
             prefix=PythonExpression(['"xterm -e gdb -ex run --args" if ', LaunchConfiguration('debug'), ' else ""']),
         ))
     Nodes.append(Node(
-            package='crazyflie_s'im',
+            package='crazyflie_sim',
             executable='crazyflie_server',
             condition=LaunchConfigurationEquals('backend','sim'),
             name='crazyflie_server',
@@ -86,27 +87,23 @@ def parse_yaml(context):
             emulate_tty=True,
             parameters= server_params,
         ))
-      
 
-    robots_list = []
-    for robot in crazyflies['robots']:
-        #if crazyflies[str(robot)]['enabled']:
-        if crazyflies['robots'][robot]['enabled']:
-            robots_list.append(robot)
-            Nodes.append(Node(
-                package='crazy_encirclement',
-                executable='encirclement_node',
-                name=robot+'_encirclement_node',
-                output='screen',
-                parameters=[{'robot': robot}]
-                ))
-            Nodes.append(Node(
-                package='crazyflie',
-                executable='watch_dog.py',
-                name=robot+'_watch_dog',
-                output='screen',
-                parameters=[{'robot_prefix': robot}]
+    robots_list = [robot for robot in crazyflies['robots'] if crazyflies['robots'][robot]['enabled']]
+    for robot in robots_list:
+        Nodes.append(Node(
+            package='crazy_encirclement',
+            executable='circle_distortion',
+            name=robot+'_circle_distortion',
+            output='screen',
+            parameters=[{'robot': robot, 'number_of_agents': len(robots_list)}],
             ))
+        Nodes.append(Node(
+            package='crazyflie',
+            executable='watch_dog.py',
+            name=robot+'_watch_dog',
+            output='screen',
+            parameters=[{'robot_prefix': robot}]
+        ))
     
     Nodes.append(Node(
         package='crazy_encirclement',
@@ -116,6 +113,7 @@ def parse_yaml(context):
         parameters= [{'robot_data': robots_list}]
     ))
     return Nodes
+
 
 def generate_launch_description():
     default_crazyflies_yaml_path = os.path.join(
@@ -133,14 +131,10 @@ def generate_launch_description():
         'config',
         'config.rviz')
 
-    
     return LaunchDescription([
-        DeclareLaunchArgument('crazyflies_yaml_file', 
-                              default_value=default_crazyflies_yaml_path),
-        DeclareLaunchArgument('motion_capture_yaml_file', 
-                              default_value=default_motion_capture_yaml_path),
-        DeclareLaunchArgument('rviz_config_file', 
-                              default_value=default_rviz_config_path),
+        DeclareLaunchArgument('crazyflies_yaml_file', default_value=default_crazyflies_yaml_path),
+        DeclareLaunchArgument('motion_capture_yaml_file', default_value=default_motion_capture_yaml_path),
+        DeclareLaunchArgument('rviz_config_file', default_value=default_rviz_config_path),
         DeclareLaunchArgument('backend', default_value='cpp'),
         DeclareLaunchArgument('debug', default_value='False'),
         DeclareLaunchArgument('rviz', default_value='False'),
@@ -159,32 +153,6 @@ def generate_launch_description():
         ),
     ])
 
-
-    # Load the YAML content
-    yaml_content = load_yaml(yaml_file)
-
-    # List to store the dynamically created nodes
-    nodes = []
-
-    # Create a node for each robot
-    for robot in yaml_content['robots']:
-        robot_name = robot['name']
-
-        # Example node for each robot, modify according to your actual node
-        node = Node(
-            package='your_robot_package',  # The package containing your robot node
-            executable='robot_node',  # The executable for your robot node
-            name=robot_name,  # Dynamically name the node
-            output='screen',
-            parameters=[{
-                'robot_name': robot_name,  # Pass the robot name as a parameter if needed
-            }]
-        )
-
-        # Add the node to the list
-        nodes.append(node)
-
-    # Return the LaunchDescription with all the nodes
-    return LaunchDescription(nodes)
-#ros2 launch crazy_encirclement <launch_file>.launch.py --ros-args -p robot:=C05 --remap /old_topic:=/new_topic
-#ros2 run crazy_encirclement encirclement --ros-args -p robot:='C05' --remap /encirclement:=/C05/encirclement
+# Example commands to run the launch file or node with parameters and remapping:
+#   ros2 launch crazy_encirclement <launch_file>.launch.py --ros-args -p robot:=C05 --remap /old_topic:=/new_topic
+#   ros2 run crazy_encirclement encirclement --ros-args -p robot:='C05' --remap /encirclement:=/C05/encirclement

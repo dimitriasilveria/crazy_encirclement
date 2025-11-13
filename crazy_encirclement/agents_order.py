@@ -1,4 +1,6 @@
 import rclpy
+import numpy as np
+
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
 from motion_capture_tracking_interfaces.msg import NamedPoseArray
@@ -7,13 +9,9 @@ from std_msgs.msg import Bool
 from rclpy.duration import Duration
 from std_srvs.srv import Empty
 from std_msgs.msg import Float32MultiArray, Float32
-
-from crazy_encirclement.utils import generate_reference
 from functools import partial
-
-import time
-import numpy as np
 from scipy.spatial.transform import Rotation as R
+
 
 class AgentsOrder(Node):
     """
@@ -26,19 +24,20 @@ class AgentsOrder(Node):
         self.declare_parameter('robot_data', ['C04', 'C13', 'C05','C14','C20']) 
 
         self.robots = self.get_parameter('robot_data').value
-        self.n_agents  = len(self.robots)
+        self.n_agents = len(self.robots)
         self.phases = np.zeros(self.n_agents)
 
         self.order = StringArray()
-        self.has_order = False#np.zeros((3,self.n_agents))
+        self.has_order = False  # np.zeros((3,self.n_agents))
         self.initial_phases = {}    
-        self.positions = np.zeros((3,self.n_agents))    
+        self.positions = np.zeros((3, self.n_agents))    
         self.distances = np.zeros(self.n_agents)
 
         qos_profile = QoSProfile(reliability =QoSReliabilityPolicy.BEST_EFFORT,
             history=QoSHistoryPolicy.KEEP_LAST,
             depth=1,
             deadline=Duration(seconds=0, nanoseconds=0))
+        
         self.create_subscription(
             NamedPoseArray, "/poses",
             self._poses_changed, qos_profile
@@ -51,7 +50,6 @@ class AgentsOrder(Node):
         self.distances_pubs = []
         for i in range(self.n_agents):
             self.distances_pubs.append(self.create_publisher(Float32, f'/{self.robots[i]}/distance_to_leader', 10))
-
 
         # for robot in self.order.data:
         #     self.phase_pub.append(self.create_publisher(Float32MultiArray,'/'+ robot + '/phases', 1))
@@ -69,8 +67,7 @@ class AgentsOrder(Node):
                 distance_msg = Float32()
                 distance_msg.data = float(self.distances[i])
                 self.distances_pubs[i].publish(distance_msg)
-
-            #     #self.info(f"phases agent {i+1}: {phases_this_robot}")
+                # self.info(f"phases agent {i+1}: {phases_this_robot}")
 
         except KeyboardInterrupt:
             self.info('Exiting node...')
@@ -78,20 +75,17 @@ class AgentsOrder(Node):
             rclpy.shutdown()
 
     def _poses_changed(self, msg):
+        """ Topic update callback to the motion capture lib's
+            poses topic to send through the external position
+            to the crazyflie 
         """
-        Topic update callback to the motion capture lib's
-           poses topic to send through the external position
-           to the crazyflie 
-        """
-
         if not self.has_order:
-            
             self.initial_pose = np.zeros((3,self.n_agents))
             for pose in msg.poses:
                 if pose.name in self.robots:
-                    self.initial_phases[str(pose.name)] = np.mod(np.arctan2(pose.pose.position.y, pose.pose.position.x),2*np.pi)
+                    self.initial_phases[str(pose.name)] = np.mod(np.arctan2(pose.pose.position.y, pose.pose.position.x), 2*np.pi)
             
-            self.order.data = sorted(self.initial_phases, key=lambda x: self.initial_phases[x],reverse=True)
+            self.order.data = sorted(self.initial_phases, key=lambda x: self.initial_phases[x], reverse=True)
             self.get_logger().info(f'Phases of agents: {self.initial_phases}')
             self.get_logger().info(f'Order of agents: {self.order.data}')
             self.has_order = True         
@@ -99,14 +93,13 @@ class AgentsOrder(Node):
         else:
             for pose in msg.poses:
                 if pose.name in self.robots:
-                    self.positions[:,self.order.data.index(pose.name)] = np.array([pose.pose.position.x, pose.pose.position.y, pose.pose.position.z])
+                    self.positions[:, self.order.data.index(pose.name)] = np.array([pose.pose.position.x, pose.pose.position.y, pose.pose.position.z])
             for i in range(self.n_agents):              
                 if i == 0:
                     k = self.n_agents -1
                 else:
                     k = i -1
                 self.distances[i] = np.linalg.norm(self.positions[:,i] - self.positions[:,k])
-
 
 
 def main():
