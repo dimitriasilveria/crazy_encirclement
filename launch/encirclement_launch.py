@@ -78,7 +78,7 @@ def parse_yaml(context):
             prefix=PythonExpression(['"xterm -e gdb -ex run --args" if ', LaunchConfiguration('debug'), ' else ""']),
         ))
     Nodes.append(Node(
-            package='crazyflie_  im',
+            package='crazyflie_s'im',
             executable='crazyflie_server',
             condition=LaunchConfigurationEquals('backend','sim'),
             name='crazyflie_server',
@@ -93,13 +93,13 @@ def parse_yaml(context):
         #if crazyflies[str(robot)]['enabled']:
         if crazyflies['robots'][robot]['enabled']:
             robots_list.append(robot)
-            # Nodes.append(Node(
-            #     package='crazy_encirclement',
-            #     executable='encirclement_node',
-            #     name=robot+'_encirclement_node',
-            #     output='screen',
-            #     parameters=[{'robot': robot}]
-            #     ))
+            Nodes.append(Node(
+                package='crazy_encirclement',
+                executable='encirclement_node',
+                name=robot+'_encirclement_node',
+                output='screen',
+                parameters=[{'robot': robot}]
+                ))
             Nodes.append(Node(
                 package='crazyflie',
                 executable='watch_dog.py',
