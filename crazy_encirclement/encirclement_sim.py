@@ -14,11 +14,11 @@ from utils import R3_so3, so3_R3
 from icecream import ic
 import pandas as pd
 import os
-import pickle
+import pickle 
 
-N = 100
-r = 1.2
-k_phi = 15
+N = 2000
+r = 1
+k_phi = 5
 kx = 5
 kv = 6.5*np.sqrt(2)
 n_agents = 3
@@ -60,15 +60,10 @@ f_T_r = np.zeros((n_agents,N))
 angles = np.zeros((3,n_agents,N))
 Wr_r = np.zeros((3,n_agents,N))
 
-agents_r[:, 0, 0] = r*np.array([r*np.cos(np.deg2rad(200)),r*np.sin(np.deg2rad(200)),0.6]).T
-agents_r[:, 1, 0] = r*np.array([r*np.cos(np.deg2rad(100)),r*np.sin(np.deg2rad(100)),0.6]).T
-agents_r[:, 2, 0] = r*np.array([r*np.cos(np.deg2rad(10)), r*np.sin(np.deg2rad(10)) ,0.6]).T
-# agents_r[:, 0, 0] = 1*np.array([r*np.cos(np.deg2rad(0)),r*np.sin(np.deg2rad(0)),0.6]).T
-# agents_r[:, 1, 0] = 1*np.array([r*np.cos(np.deg2rad(100)),r*np.sin(np.deg2rad(100)),0.6]).T
-# agents_r[:, 2, 0] = 1.*np.array([r*np.cos(np.deg2rad(200)),r*np.sin(np.deg2rad(200)) ,0.6]).T
-
-# agents_r[:, 3, 0] = 1.*np.array([r*np.cos(np.deg2rad(0)),r*np.sin(np.deg2rad(0)) ,0.6]).T
-# agents_r[:, 4, 0] = 1.*np.array([r*np.cos(np.deg2rad(75)),r*np.sin(np.deg2rad(75)) ,0.6]).T
+agents_r[:, 0, 0] = 1*np.array([r*np.cos(np.deg2rad(10)),r*np.sin(np.deg2rad(10)),0.6]).T
+agents_r[:, 1, 0] = 1*np.array([r*np.cos(np.deg2rad(100)),r*np.sin(np.deg2rad(100)),0.6]).T
+agents_r[:, 2, 0] = 1.*np.array([r*np.cos(np.deg2rad(200)),r*np.sin(np.deg2rad(200)) ,0.6]).T
+# agents_r[:, 3, 0] = 1.*np.array([r*np.cos(np.deg2rad(290)),r*np.sin(np.deg2rad(290)) ,0.6]).T
 
 ra_r[:,:,0] = agents_r[:,:,0]
 for i in range(n_agents):
@@ -93,13 +88,16 @@ for i in range(0,N-1):
     distances[:,i] = distances_new
     #ic(va_r[:,:,i+1])
 
-
     accels[:,:,i] =  kx*(ra_r[:,:,i+1] - agents_r[:,:,i]) + kv*(va_r[:,:,i+1] - agents_v[:,:,i]) # +
     agents_v[:,:,i+1] =( agents_v[:,:,i] + accels[:,:,i]*dt)*np.random.uniform(0.99,1.01)
     agents_r[:,:,i+1] = (agents_r[:,:,i] + agents_v[:,:,i]*dt + 0.5*accels[:,:,i]*dt**2)*np.random.uniform(0.99,1.01)
     #agents_r[:,:,i+1] = target_r_new
 #saving data to a pickle file
 with open ('positions_new_controller.pkl','wb') as f:
+    pickle.dump(agents_r,f)
+
+#saving data to a pickle file
+with open ('positions.pkl','wb') as f:
     pickle.dump(agents_r,f)
 
 figures_dir = "figures/"
@@ -233,12 +231,21 @@ if save:
     plt.close()
 else:
     plt.show()
+for i in range(n_diff):
+    plt.plot(t[0:-1],distances[i,0:-1],label=f"Distance agent {i+1}")
+plt.ylabel("Distances (m)")
+plt.xlabel("Time (s)")
+plt.title("Distances between agents")
+plt.legend()
+if save:
+    plt.savefig(f"{figures_dir}/distances.png")
+    plt.close()
+else:
+    plt.show()
 
-
-plt.plot(t[0:-1],np.rad2deg(phi_diff[0,0:-1]),label=f"Phase Diff agent 1-2")
-plt.plot(t[0:-1],np.rad2deg(phi_diff[1,0:-1]),label=f"Phase Diff agent 1-3")
-plt.plot(t[0:-1],np.rad2deg(phi_diff[2,0:-1]),label=f"Phase Diff agent 2-3")
-#plt.title("Phase differences between agents")
+for i in range(n_diff):
+    plt.plot(t[0:-1],np.rad2deg(phi_diff[i,0:-1]),label=f"Phase difference agent {i+1}")
+plt.title("Phase differences between agents")
 plt.ylabel("$\phi$ (degrees)")
 plt.xlabel("Time (s)")
 plt.legend()

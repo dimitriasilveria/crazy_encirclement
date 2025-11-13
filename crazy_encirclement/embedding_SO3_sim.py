@@ -154,7 +154,7 @@ class Embedding():
         #return self.scale*np.cos(phi)*np.sin(phi)
     
     def calc_wy(self,phi):
-        return self.scale*np.sin(phi)*np.cos(phi)**2
+        return self.scale*np.cos(phi)*np.sin(phi)
 
     def phi_dot_desired(self,phi_i, phi_j, phi_k, phi_dot_des, k,i):
 
