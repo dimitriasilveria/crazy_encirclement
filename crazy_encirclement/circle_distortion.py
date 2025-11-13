@@ -2,7 +2,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy,QoSDurabilityPolicy
 from motion_capture_tracking_interfaces.msg import NamedPoseArray
-from crazyflie_interfaces.msg import FullState, StringArray
+from crazyflie_interfaces.msg import FullState, StringArray, Position
 from std_msgs.msg import Bool
 from rclpy.duration import Duration
 from crazy_encirclement.embedding_SO3_ros import Embedding
@@ -11,39 +11,33 @@ from nav_msgs.msg import Odometry
 from std_msgs.msg import Float32MultiArray, Float32
 from geometry_msgs.msg import Pose, Twist, PoseStamped
 from crazy_encirclement.utils2 import  trajectory, R3_so3, so3_R3
-
+from scipy.linalg import expm, logm
 import time
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
 class Circle_distortion(Node):
     def __init__(self):
+        """
+            Node that sends the crazyflie to a desired position
+            The desired position comes from the distortion of a circle
+        """
         super().__init__('circle_distortion')
         self.info = self.get_logger().info
         self.info('Circle distortion node has been started.')
-        self.declare_parameter('r', '1')
+        self.declare_parameter('r', '1.')
         self.declare_parameter('robot', 'C20')
-        self.declare_parameter('number_of_agents', '1')
-        self.declare_parameter('phi_dot', '0.5')
-        self.declare_parameter('tactic', 'circle')    
-        self.declare_parameter('initial_pase', '0')
-
+        self.declare_parameter('number_of_agents', '4')
+        self.declare_parameter('phi_dot', '0.8')
+  
         self.robot = self.get_parameter('robot').value
         self.n_agents  = int(self.get_parameter('number_of_agents').value)
         self.r  = float(self.get_parameter('r').value)
-        self.k_phi  = 0#float(self.get_parameter('k_phi').value)
+        self.k_phi  = 8#float(self.get_parameter('k_phi').value)
         self.phi_dot  = float(self.get_parameter('phi_dot').value)
-        self.initial_phase = float(self.get_parameter('initial_pase').value)
-        self.tactic  = self.get_parameter('tactic').value
-        self.reboot_client = self.create_client(Empty,  '/'+'all'+'/reboot')
+        self.initial_phase = 0
+        self.reboot_client = self.create_client(Empty, self.robot + '/reboot')
 
-        self.mb = 0.04
-        self.g = 9.81
-        self.I3 = np.array([0,0,1]).T.reshape(3)
-        w_r = 0 #reference yaw
-        self.ca_1 = np.array([np.cos(w_r),np.sin(w_r),0]).T #auxiliar vector 
-        self.Ca_r = np.eye(3)
-        self.Ca_b = np.eye(3)
 
         self.order = []
         self.has_initial_pose = False
@@ -54,27 +48,30 @@ class Circle_distortion(Node):
         self.land_flag = False
         self.encircle_flag = False
         self.has_order = False
+        self.has_phase_follower = False
+        self.has_phase_leader = False
         self.final_pose = np.zeros(3)
-        self.agents_r = np.zeros(3)
+        self.current_pos = np.zeros(3)
         self.initial_pose = np.zeros(3)
-        self.Ca_r = np.eye(3)
-        self.quat = [0,0,0,1]
-        self.agents_v = np.zeros(3)
-        self.hover_height = 0.6
-        self.target_a = np.zeros(3)
-        #change back #############################################################
-        # self.agents_r[0] = self.r*np.cos(self.initial_phase)
-        # self.agents_r[1] = self.r*np.sin(self.initial_phase)
-        # self.agents_r[2] = self.hover_height
-        # self.initial_pose = self.agents_r.copy()
+        self.hover_height = 0.9
+        self.leader = None
+        self.follower = None
+        self.Rot_des = np.eye(3)
+        self.target_r = np.zeros(3)
+        self.timer_period = 0.1
+
         self.i_landing = 0
         self.i_takeoff = 0
-        if self.n_agents > 1:
-            self.phases = None
-        else:
-            self.phases = 0
+        self.get_logger().info(f"Number of agents: {self.n_agents}")
+
+        self.phases = np.zeros(self.n_agents)
+
         self.phi_cur = Float32()
-        
+        self.phase_pub = self.create_publisher(Float32,'/'+ self.robot + '/phase', 1)
+
+        self.state = 0
+        #0-take-off, 1-hover, 2-encirclement, 3-landing
+
         self.create_subscription(
             Bool,
             '/landing',
@@ -85,129 +82,89 @@ class Circle_distortion(Node):
             '/encircle',
             self._encircle_callback,
             10)
-        # qos_profile = QoSProfile(reliability =QoSReliabilityPolicy.BEST_EFFORT,
-        #     history=QoSHistoryPolicy.KEEP_LAST,
-        #     depth=1,
-        #     deadline=Duration(seconds=0, nanoseconds=0))
 
-        # self.create_subscription(
-        #     NamedPoseArray, "/poses",
-        #     self._poses_changed, qos_profile
-        # )
-        qos_profile = QoSProfile(
-            reliability=QoSReliabilityPolicy.RELIABLE,
-            history=QoSHistoryPolicy.KEEP_LAST,
-            depth=10,  # Keep the last 10 messages in the buffer
-            durability=QoSDurabilityPolicy.VOLATILE,
-            # deadline=rclpy.duration.Duration(seconds=0.05),  # 50 ms deadline
-            # lifespan=rclpy.duration.Duration(seconds=1.0)    # Message lifespan of 1 second
-        )
         self.create_subscription(
-            Odometry, "/"+self.robot+"/odom",
-            self._poses_changed, qos_profile
+            PoseStamped, "/"+self.robot+"/pose",
+            self._poses_changed, 10
         )
-        
-
-        if self.n_agents > 1:
-            self.create_subscription(
-                Float32MultiArray,
-                '/'+self.robot+'/phases',
-                self._phase_callback,
-                10)
-            while not self.phases:
-                rclpy.spin_once(self, timeout_sec=0.1)
                 
-        while (not self.has_initial_pose):
+        while (not self.has_order):
             rclpy.spin_once(self, timeout_sec=0.1)
 
-        self.info(f"Initial pose: {self.initial_pose}")
-        self.info("First pose received. Moving on...")
-
-
-        self.position_pub = self.create_publisher(Pose,'/'+ self.robot + '/cmd_position', 10)
-        self.phase_pub = self.create_publisher(Float32,'/'+ self.robot + '/phase', 10)
-        self.full_state_pub = self.create_publisher(FullState,'/'+ self.robot + '/full_state', 10)
-        self.attitude_thrust_pub = self.create_publisher(Twist,'/'+ self.robot + '/vel_legacy', 100)
-
-        #initiating some variables
-        self.target_v = np.zeros(3)
-        self.kx = 5
-        self.kv = 2.5*np.sqrt(2)
-
-        self.timer_period = 0.01
-        self.embedding = Embedding(self.r, self.phi_dot,self.k_phi, self.tactic,self.n_agents,self.initial_pose,self.hover_height,self.timer_period,4)
-        # while (not self.has_initial_pose):
+        self.create_subscription(Float32, '/'+ self.leader + '/phase', self._phase_callback_leader, 1)
+        self.create_subscription(Float32, '/'+ self.follower + '/phase', self._phase_callback_follower, 1)
+    
+        # while (self.phases[0] == 0):
+        #     self.phase_pub.publish(self.phi_cur)
         #     rclpy.spin_once(self, timeout_sec=0.1)
+
+        # while (self.phases[2] == 0):
+        #     self.phase_pub.publish(self.phi_cur)
+        #     rclpy.spin_once(self, timeout_sec=0.1)
+
+        self.info(f"agents phases: {self.phases}")
+        self.wd = Float32()
+        self.phi_diff = Float32()
+        
+        self.position_pub = self.create_publisher(Position,'/'+ self.robot + '/cmd_position', 10)
+        self.publisher_w = self.create_publisher(Float32,'/'+ self.robot + '/omega_d', 10)
+        self.publish_phi_diff = self.create_publisher(Float32,'/'+ self.robot + '/phi_diff', 10)
+
+        self.publisher_w.publish(self.wd)
+        #initiating some variables
+
+        self.embedding = Embedding(self.r, self.phi_dot,self.k_phi, self.n_agents,self.initial_pose,self.hover_height,self.timer_period,self.phase_pub)
+
         self.landing_traj(4)
         self.takeoff_traj(1)
 
         input("Press Enter to takeoff")
-        #time.sleep(2.0)
 
         self.timer = self.create_timer(self.timer_period, self.timer_callback)
 
     def timer_callback(self):
 
         try:
-            if self.land_flag:
-                self.landing()
-
-                if self.i_landing < len(self.t_landing)-1:
-                    self.i_landing += 1
-                else:
-                    self.has_landed = True
-                    self.has_taken_off = False
-                    self.has_hovered = False
-                    self.reboot()
-                    self.destroy_node()
-                    self.info('Exiting circle node')
-
-            elif not self.has_taken_off and not self.has_landed:
-                self.takeoff()
-
-            elif (not self.has_hovered) and (self.has_taken_off) and not self.has_landed:
-                self.hover()   
-                if self.encircle_flag:
-                    self.has_hovered = True
-                    self.info('Hovering finished')
+            if self.state == 0:
+                if self.has_initial_pose:
+                    self.phi_cur.data = float(self.initial_phase)
+                    self.phase_pub.publish(self.phi_cur)
+                    self.takeoff()
+                    phi_k = self.phases[0]
+                    phi_i = self.phases[1]
+                    unit_i = np.array([np.cos(phi_i), np.sin(phi_i), 0])
+                    unit_k = np.array([np.cos(phi_k), np.sin(phi_k), 0])
+                    self.phi_diff.data = np.arccos(np.dot(unit_i,unit_k))
+                    self.publish_phi_diff.publish(self.phi_diff)
+            elif self.state == 1:
+                self.hover() 
             
-            elif not self.has_landed and self.has_hovered:# and self.pose.position.z > 0.10:#self.ra_r[:,0]:
-                
-                phi, target_r, target_v, phi_dot_x= self.embedding.targets(self.agents_r,self.phases)
-                #self.info(f"phi_dot_x: {phi_dot_x}")
-                # self.info(f"target_r: {target_r},{target_v}")
+            elif self.state = 2: 
+                if self.has_phase_follower and self.has_phase_leader
+                    phi, target_r, wd, phi_diff = self.embedding.targets(self.current_pos,self.phases)
+                    self.phi_diff.data = phi_diff
+                    self.publish_phi_diff.publish(self.phi_diff)
+                    self.phi_cur.data = float(phi_i)
+                    self.phase_pub.publish(self.phi_cur)
+                    self.wd.data = wd
+                    self.publisher_w.publish(self.wd)
+                    self.send_position(self.target_r)
+            
+            elif self.state == 3:
+                if self.has_final:
+                    self.landing()
 
-                
-                self.phi_cur.data = float(phi)
-                self.phase_pub.publish(self.phi_cur)
-                if self.n_agents > 1:
-                    self.phases[1] = phi
-                else:
-                    self.phases = phi
-                #self.info(f"agents_r: {target_r}, {self.agents_r}, agents_v: {target_v}, {self.agents_v}")
-                #accels = self.kx*(target_r - self.agents_r) + self.kv*(target_v - self.agents_v)
-                #accels = (target_v - self.agents_v)/self.timer_period
-                #accels = np.clip(accels, -1, 1)
-                # agents_v = self.agents_v + accels*self.timer_period
-                #self.info(f"agents_r: {self.agents_r}, agents_v*dt: {self.agents_v*self.timer_period }, accel*dt^2: {0.5*accels*self.timer_period**2}")
-                # self.agents_r = self.agents_r + self.agents_v*self.timer_period + 0.5*accels*self.timer_period**2
-                # self.agents_v = agents_v               
-                
-                #self.target_a = np.clip(self.target_a, -1, 1)
-                # self.target_r[:2] = np.clip(self.target_r[:,2], -1.5, 1.5)
-                # self.target_r[2] = np.clip(self.target_r[2], 0.2, 1.5)
-                #f_T_r, roll, pitch, yawrate = self.generate_reference(self.target_a)
-                #Wr_r = np.clip(np.rad2deg(Wr_r), -5, 5)
-                self.next_point(target_r)
-                #self.next_point_full_state(target_r,target_v,self.target_a,np.zeros(3),self.quat)
-                #self.next_point_attitude_thrust(pitch, roll,yawrate, f_T_r)
-                #self.landing()
-                
-
-                
-
+                    if self.i_landing < len(self.t_landing)-1:
+                        self.i_landing += 1
+                    else:
+                        self.has_landed = True
+                        self.has_taken_off = False
+                        self.has_hovered = False
+                        self.reboot()
+                        self.info('Exiting circle node')  
+                        self.destroy_node()
+                        rclpy.shutdown()             
         except KeyboardInterrupt:
-            self.landing()
             self.info('Exiting open loop command node')
 
             #self.publishers[i].publish(msg)
@@ -218,169 +175,119 @@ class Circle_distortion(Node):
            poses topic to send through the external position
            to the crazyflie 
         """
-        self.quat = [msg.pose.pose.orientation.x, msg.pose.pose.orientation.y, msg.pose.pose.orientation.z, msg.pose.pose.orientation.w]
 
         if not self.has_initial_pose:      
-            self.initial_pose[0] = msg.pose.pose.position.x
-            self.initial_pose[1] = msg.pose.pose.position.y
-            self.initial_pose[2] = msg.pose.pose.position.z      
+            self.initial_pose[0] = msg.pose.position.x
+            self.initial_pose[1] = msg.pose.position.y
+            self.initial_pose[2] = msg.pose.position.z   
+            self.initial_phase = np.mod(np.arctan2(self.initial_pose[1], self.initial_pose[0]),2*np.pi)   
             self.has_initial_pose = True    
             
         elif not self.land_flag :
 
-            self.agents_r[0] = msg.pose.pose.position.x
-            self.agents_r[1] = msg.pose.pose.position.y
-            self.agents_r[2] = msg.pose.pose.position.z
-            self.agents_v[0] = msg.twist.twist.linear.x
-            self.agents_v[1] = msg.twist.twist.linear.y
-            self.agents_v[2] = msg.twist.twist.linear.z
+            self.current_pos[0] = msg.pose.position.x
+            self.current_pos[1] = msg.pose.position.y
+            self.current_pos[2] = msg.pose.position.z
+
         elif self.has_final == False and self.land_flag == True:
-            self.has_final = True
+            
             self.final_pose = np.zeros(3)
             self.info("Landing...")
 
 
-            self.final_pose[0] = msg.pose.pose.position.x
-            self.final_pose[1] = msg.pose.pose.position.y
-            self.final_pose[2] = msg.pose.pose.position.z
+            self.final_pose[0] = msg.pose.position.x
+            self.final_pose[1] = msg.pose.position.y
+            self.final_pose[2] = msg.pose.position.z
             self.r_landing[0,:] += self.final_pose[0]*np.ones(len(self.t_landing))
             self.r_landing[1,:] += self.final_pose[1]*np.ones(len(self.t_landing))
+            self.has_final = True
 
+    def _phase_callback_leader(self, msg):
+        self.has_phase_leader = True
+        if msg.data:
+            self.phases[0] = msg.data
 
-        
+    def _phase_callback_follower(self, msg):
+        self.has_phase_follower = True
+        if msg.data:
+            self.phases[2] = msg.data
 
-    def _phase_callback(self, msg):
-        self.phases = msg.data
+    def _order_callback(self, msg):
+        if not self.has_order:
+            self.get_logger().info(f"Phase received: {msg.data}")
+            order = msg.data
+            for robot in order:
+                if robot == self.robot:
+                    i = order.index(robot)
+                    if i == 0:
+                        self.leader = order[self.n_agents-1]
+                        self.follower = order[i+1]
+                    elif i == (self.n_agents-1):
+                        self.leader = order[i-1]
+                        self.follower = order[0]
+                    else:
+                        self.leader = order[i-1]
+                        self.follower = order[i+1]
+            self.has_order = True
+            self.get_logger().info(f"Leader: {self.leader}, Follower: {self.follower}")
 
     def takeoff(self):
-        self.next_point(self.r_takeoff[:,self.i_takeoff])
+        self.send_position(self.r_takeoff[:,self.i_takeoff])
+        self.phase_pub.publish(self.phi_cur)
         #self.info(f"Publishing to {msg.pose.position.x}, {msg.pose.position.y}, {msg.pose.position.z}")
         if self.i_takeoff < len(self.t_takeoff)-1:
             self.i_takeoff += 1
         else:
             self.has_taken_off = True
-        self.t_init = time.time()
+            self.state = 1
 
     def takeoff_traj(self,t_max):
         #takeoff trajectory
         self.t_takeoff = np.arange(0,t_max,self.timer_period)
-        #self.t_takeoff = np.tile(t_takeoff[:,np.newaxis],(1,self.n_agents))
         self.r_takeoff = np.zeros((3,len(self.t_takeoff))) 
         self.r_takeoff[0,:] += self.initial_pose[0]*np.ones(len(self.t_takeoff))
         self.r_takeoff[1,:] += self.initial_pose[1]*np.ones(len(self.t_takeoff))
         self.r_takeoff[2,:] = self.hover_height*(self.t_takeoff/t_max)
-        v,_ = trajectory(self.r_takeoff,self.timer_period)
-        self.r_dot_takeoff = v
 
     def landing_traj(self,t_max):
         #landing trajectory
-        self.t_landing = np.arange(t_max,1,-self.timer_period)
+        self.t_landing = np.arange(t_max,0.1,-self.timer_period)
         self.i_landing = 0
         self.r_landing = np.zeros((3,len(self.t_landing)))
         self.r_landing[2,:] = self.hover_height*(self.t_landing/t_max)
-        v,_ = trajectory(self.r_landing,self.timer_period)
-        self.r_dot_landing = v
     
     def _landing_callback(self, msg):
         self.land_flag = msg.data
+        self.state = 3
 
     def _encircle_callback(self, msg):
         self.encircle_flag = msg.data
+        self.state = 2
 
     def hover(self):
 
-        msg = Pose()
-        msg.position.x = self.r*np.cos(self.initial_phase)
-        msg.position.y = self.r*np.sin(self.initial_phase)
-        msg.position.z = self.hover_height
+        msg = Position()
+        msg.x = self.r*np.cos(self.initial_phase)
+        msg.y = self.r*np.sin(self.initial_phase)
+        msg.z = self.hover_height
         self.position_pub.publish(msg)
 
 
     def landing(self):
-        self.next_point(self.r_landing[:,self.i_landing])
+        self.send_position(self.r_landing[:,self.i_landing])
 
     def reboot(self):
         req = Empty.Request()
         self.reboot_client.call_async(req)
-        time.sleep(2.0)
+        time.sleep(1.0)    
 
-    def next_point(self,r,quat_new=np.array([0,0,0,1])):
-        msg = Pose()
-        msg.position.x = float(r[0])
-        msg.position.y = float(r[1])
-        msg.position.z = float(r[2])
-        msg.orientation.x = float(quat_new[0])
-        msg.orientation.y = float(quat_new[1])
-        msg.orientation.z = float(quat_new[2])
-        msg.orientation.w = float(quat_new[3])   
+    def send_position(self,r):
+        msg = Position()
+        msg.x = float(r[0])
+        msg.y = float(r[1])
+        msg.z = float(r[2])
+
         self.position_pub.publish(msg)
-
-    def clip_value(self,value, min_val=-32768, max_val=32767):
-        return max(min_val, min(value, max_val))
-    def next_point_full_state(self,r,v,v_dot=np.zeros(3),Wr_r_new=np.zeros(3),quat_new=np.array([0,0,0,1])):
-        # self.info(f"debug before {r}, {v}, {v_dot}, {Wr_r_new}, {quat_new}")
-        # r = [self.clip_value(i) for i in r]
-        # v = [self.clip_value(i) for i in v]
-        # v_dot = [self.clip_value(i) for i in v_dot]
-        # Wr_r_new = [self.clip_value(i) for i in Wr_r_new]
-
-        #self.info(f"debug after {r}, {v}, {v_dot}, {Wr_r_new}, {quat_new}")
-        msg = FullState()
-        msg.pose.position.x = float(r[0])
-        msg.pose.position.y = float(r[1])
-        msg.pose.position.z = float(r[2])
-        msg.acc.x = float(v_dot[0])
-        msg.acc.y = float(v_dot[1])
-        msg.acc.z = float(v_dot[2])
-        msg.pose.orientation.x = float(quat_new[0])
-        msg.pose.orientation.y = float(quat_new[1])
-        msg.pose.orientation.z = float(quat_new[2])
-        msg.pose.orientation.w = float(quat_new[3])
-        msg.twist.linear.x = float(v[0])
-        msg.twist.linear.y = float(v[1])
-        msg.twist.linear.z = float(v[2])
-        msg.twist.angular.x = np.rad2deg(float(Wr_r_new[0]))
-        msg.twist.angular.y = np.rad2deg(float(Wr_r_new[1]))
-        msg.twist.angular.z = np.rad2deg(float(Wr_r_new[2]))
-        self.full_state_pub.publish(msg)
-
-    def next_point_attitude_thrust(self,pitch, roll,yawrate, f_T_r):
-        msg = Twist()
-        msg.angular.x = float(pitch)
-        msg.angular.y = float(roll)
-        msg.angular.z = float(yawrate)
-        msg.linear.z = float(f_T_r)
-        self.attitude_thrust_pub.publish(msg)
-
-    def generate_reference(self, va_r_dot=np.zeros(3)):
-
-        fa_r = self.mb*va_r_dot +self.mb*self.g*self.I3 #+ Ca_r@D@Ca_r.T@va_r
-        f_T_r = self.I3.T@self.Ca_r.T@fa_r
-        if np.linalg.norm(fa_r) != 0:
-            r3 = fa_r.reshape(3,1)/np.linalg.norm(fa_r)
-        else:
-            r3 = np.zeros((3,1))
-
-        aux = R3_so3(r3)@self.ca_1
-        if np.linalg.norm(aux) != 0:
-            r2 = aux.reshape(3,1)/np.linalg.norm(aux)
-        else:
-            r2 = np.zeros((3,1))
-
-        r1 = (R3_so3(r2)@r3).reshape(3,1);
-        Ca_r_new = np.hstack((r1, r2, r3))
-        if np.linalg.norm(r3) != 0:
-            Wr_r = so3_R3(np.linalg.inv(self.Ca_r)@Ca_r_new)/self.timer_period
-        else:
-            Wr_r = np.zeros((3,1))
-        self.Ca_r = Ca_r_new
-
-        angles = R.from_matrix(Ca_r_new).as_euler('zyx', degrees=True)
-        #quat = R.from_matrix(Ca_r_new).as_quat()
-        roll = angles[2]
-        pitch = angles[1]
-        Wr_r = self.Ca_b.T@self.Ca_r@Wr_r
-        return f_T_r, roll, pitch, np.rad2deg(Wr_r[2])
 
  
 def main():
