@@ -1,4 +1,6 @@
 import rclpy
+import time
+import numpy as np
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy,QoSDurabilityPolicy
 from motion_capture_tracking_interfaces.msg import NamedPoseArray
@@ -12,9 +14,10 @@ from std_msgs.msg import Float32MultiArray, Float32
 from geometry_msgs.msg import Pose, Twist, PoseStamped
 from crazy_encirclement.utils2 import  trajectory, R3_so3, so3_R3
 from scipy.linalg import expm, logm
-import time
-import numpy as np
 from scipy.spatial.transform import Rotation as R
+
+from filters import FilterGPS
+
 
 class Circle_distortion(Node):
     def __init__(self):
@@ -25,20 +28,49 @@ class Circle_distortion(Node):
         super().__init__('circle_distortion')
         self.info = self.get_logger().info
         self.info('Circle distortion node has been started.')
-        self.declare_parameter('r', '1.')
+
+        # Parameters
         self.declare_parameter('robot', 'C20')
         self.declare_parameter('number_of_agents', '4')
+        self.declare_parameter('r', '1.')
         self.declare_parameter('phi_dot', '0.8')
-  
+
         self.robot = self.get_parameter('robot').value
         self.n_agents  = int(self.get_parameter('number_of_agents').value)
         self.r  = float(self.get_parameter('r').value)
-        self.k_phi  = 8#float(self.get_parameter('k_phi').value)
-        self.phi_dot  = float(self.get_parameter('phi_dot').value)
-        self.initial_phase = 0
+        self.k_phi = 8  #float(self.get_parameter('k_phi').value)
+        self.phi_dot = float(self.get_parameter('phi_dot').value)
+
+        # Filter parameters
+        self.declare_parameter('P', [0.0001, 0.0001, 0.25, 0.0001])
+        self.declare_parameter('Q', [0.0, 0.0, 0.001, 0.0001])
+        self.declare_parameter('V', [0.1, 0.1, 0.1])
+        self.declare_parameter('update_hz', 10.0)
+        self.declare_parameter('embedding_fn_name', 'modelB')
+
+         # Get filter parameters
+        P_list = self.get_parameter('P').value
+        Q_list = self.get_parameter('Q').value
+        V_list = self.get_parameter('V').value
+        update_hz = self.get_parameter('update_hz').value
+        embedding_fn_name = self.get_parameter('embedding_fn_name').value
+
+        self.initial_phase = (2*np.pi)/self.n_agents + np.random.normal(0, 0.1)
+        filter_params = {
+            'P': P_list,
+            'Q': Q_list,
+            'V': V_list,
+            'radius_guess': self.r + np.random.normal(0, 0.15),
+            'theta_guess': self.initial_phase,
+        }
+
+        # Create filter instance
+        self.filter = FilterGPS(self.robot, embedding_fn_name, filter_params, self)
+  
+        # Reboot client
         self.reboot_client = self.create_client(Empty, self.robot + '/reboot')
 
-
+        # Flags and variables
         self.order = []
         self.has_initial_pose = False
         self.has_final = False
@@ -62,7 +94,7 @@ class Circle_distortion(Node):
 
         self.i_landing = 0
         self.i_takeoff = 0
-        self.get_logger().info(f"Number of agents: {self.n_agents}")
+        # self.info(f"Number of agents: {self.n_agents}")
 
         self.phases = np.zeros(self.n_agents)
 
@@ -70,7 +102,7 @@ class Circle_distortion(Node):
         self.phase_pub = self.create_publisher(Float32,'/'+ self.robot + '/phase', 1)
 
         self.state = 0
-        #0-take-off, 1-hover, 2-encirclement, 3-landing
+        # 0-take-off, 1-hover, 2-encirclement, 3-landing
 
         self.create_subscription(
             Bool,
@@ -82,10 +114,10 @@ class Circle_distortion(Node):
             '/encircle',
             self._encircle_callback,
             10)
-
         self.create_subscription(
-            PoseStamped, "/"+self.robot+"/pose",
-            self._poses_changed, 10
+            PoseStamped, "/" + self.robot + "/pose",
+            self._poses_changed,
+            10
         )
                 
         while (not self.has_order):
@@ -139,8 +171,8 @@ class Circle_distortion(Node):
             elif self.state == 1:
                 self.hover() 
             
-            elif self.state = 2: 
-                if self.has_phase_follower and self.has_phase_leader
+            elif self.state == 2: 
+                if self.has_phase_follower and self.has_phase_leader:
                     phi, target_r, wd, phi_diff = self.embedding.targets(self.current_pos,self.phases)
                     self.phi_diff.data = phi_diff
                     self.publish_phi_diff.publish(self.phi_diff)

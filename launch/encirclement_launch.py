@@ -88,6 +88,15 @@ def parse_yaml(context):
             parameters= server_params,
         ))
 
+    # Filter configuration
+    filter_yaml = os.path.join(
+        get_package_share_directory('crazy_encirclement'),
+        'config',
+        'filters.yaml')
+
+    with open(filter_yaml, 'r') as ymlfile:
+        filter_yaml_content = yaml.safe_load(ymlfile)
+
     robots_list = [robot for robot in crazyflies['robots'] if crazyflies['robots'][robot]['enabled']]
     for robot in robots_list:
         Nodes.append(Node(
@@ -95,7 +104,7 @@ def parse_yaml(context):
             executable='circle_distortion',
             name=robot+'_circle_distortion',
             output='screen',
-            parameters=[{'robot': robot, 'number_of_agents': len(robots_list)}],
+            parameters=[{'robot': robot, 'number_of_agents': len(robots_list)} + filter_yaml_content.get('circle_distortion', {}).get('ros__parameters', {})],
             ))
         Nodes.append(Node(
             package='crazyflie',
