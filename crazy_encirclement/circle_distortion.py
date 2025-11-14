@@ -27,7 +27,7 @@ class Circle_distortion(Node):
         self.info('Circle distortion node has been started.')
         self.declare_parameter('r', '1.')
         self.declare_parameter('robot', 'C20')
-        self.declare_parameter('number_of_agents', '4')
+        self.declare_parameter('number_of_agents', '3')
         self.declare_parameter('phi_dot', '0.8')
   
         self.robot = self.get_parameter('robot').value
@@ -62,7 +62,7 @@ class Circle_distortion(Node):
 
         self.i_landing = 0
         self.i_takeoff = 0
-        self.get_logger().info(f"Number of agents: {self.n_agents}")
+
         time.sleep(3.0) #sleep to ensure the robot filter converges
 
         self.phases = np.zeros(self.n_agents)
@@ -84,11 +84,25 @@ class Circle_distortion(Node):
             self._encircle_callback,
             10)
 
-        self.create_subscription(
-            PoseStamped, "/"+self.robot+"/pose",
-            self._poses_changed, 10
-        )
+        # self.create_subscription(
+        #     PoseStamped, "/"+self.robot+"/pose",
+        #     self._poses_changed, 10
+        # )
+        qos_profile = QoSProfile(reliability =QoSReliabilityPolicy.BEST_EFFORT,
+            history=QoSHistoryPolicy.KEEP_LAST,
+            depth=1,
+            deadline=Duration(seconds=0, nanoseconds=0))
 
+        self.create_subscription(
+            NamedPoseArray, "/poses",
+            self._poses_changed, qos_profile
+        )
+        # qos_profile = QoSProfile(
+        #     reliability=QoSReliabilityPolicy.RELIABLE,
+        #     history=QoSHistoryPolicy.KEEP_LAST,
+        #     depth=10,  # Keep the last 10 messages in the buffer
+        #     durability=QoSDurabilityPolicy.VOLATILE,
+        # )
         self.create_subscription(
             StringArray, '/agents_order',
             self._order_callback,
@@ -132,7 +146,7 @@ class Circle_distortion(Node):
                 if self.has_initial_pose:
                     self.phi_cur.data = float(self.initial_phase)
                     self.phases[1] = self.initial_phase
-                    self.phase_pub.publish(self.phi_cur)
+                    # self.phase_pub.publish(self.phi_cur)
                     self.takeoff()
                     phi_k = self.phases[0]
                     phi_i = self.initial_phase
@@ -180,28 +194,31 @@ class Circle_distortion(Node):
            poses topic to send through the external position
            to the crazyflie 
         """
-
+        for pose in msg.poses:
+            if pose.name == self.robot:
+                robot_pose = pose.pose
+                break
         if not self.has_initial_pose:      
-            self.initial_pose[0] = msg.pose.position.x
-            self.initial_pose[1] = msg.pose.position.y
-            self.initial_pose[2] = msg.pose.position.z   
+            self.initial_pose[0] = robot_pose.position.x
+            self.initial_pose[1] = robot_pose.position.y
+            self.initial_pose[2] = robot_pose.position.z   
             self.initial_phase = np.mod(np.arctan2(self.initial_pose[1], self.initial_pose[0]),2*np.pi)   
             self.takeoff_traj(4)
             self.has_initial_pose = True    
             
         elif not self.land_flag :
 
-            self.current_pos[0] = msg.pose.position.x
-            self.current_pos[1] = msg.pose.position.y
-            self.current_pos[2] = msg.pose.position.z
+            self.current_pos[0] = robot_pose.position.x
+            self.current_pos[1] = robot_pose.position.y
+            self.current_pos[2] = robot_pose.position.z
 
         elif self.has_final == False and self.land_flag == True:
             
             self.final_pose = np.zeros(3)
             self.info("Landing...")
-            self.final_pose[0] = msg.pose.position.x
-            self.final_pose[1] = msg.pose.position.y
-            self.final_pose[2] = msg.pose.position.z
+            self.final_pose[0] = robot_pose.position.x
+            self.final_pose[1] = robot_pose.position.y
+            self.final_pose[2] = robot_pose.position.z
             self.landing_traj(2)
             self.has_final = True
 
@@ -236,6 +253,7 @@ class Circle_distortion(Node):
 
     def takeoff(self):
         self.send_position(self.r_takeoff[:,self.i_takeoff])
+        self.get_logger().info(f"publishing phase {self.phi_cur.data}")
         self.phase_pub.publish(self.phi_cur)
         #self.info(f"Publishing to {msg.pose.position.x}, {msg.pose.position.y}, {msg.pose.position.z}")
         if self.i_takeoff < len(self.t_takeoff)-1:
@@ -272,8 +290,8 @@ class Circle_distortion(Node):
     def hover(self):
 
         msg = Position()
-        msg.x = self.r*np.cos(self.initial_phase)
-        msg.y = self.r*np.sin(self.initial_phase)
+        msg.x = self.initial_pose[0]
+        msg.y = self.initial_pose[1]
         msg.z = self.hover_height
         self.position_pub.publish(msg)
 
