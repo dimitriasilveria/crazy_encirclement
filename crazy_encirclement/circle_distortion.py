@@ -88,7 +88,12 @@ class Circle_distortion(Node):
             PoseStamped, "/"+self.robot+"/pose",
             self._poses_changed, 10
         )
-                
+
+        self.create_subscription(
+            StringArray, '/agents_order',
+            self._order_callback,
+            10)
+
         while (not self.has_order):
             rclpy.spin_once(self, timeout_sec=0.1)
 
