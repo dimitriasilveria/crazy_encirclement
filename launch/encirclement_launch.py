@@ -111,7 +111,7 @@ def parse_yaml(context):
             executable='gps.py',
             name=robot+'_gps_node',
             output='screen',
-            parameters=[{'robot': robot} + filter_yaml_content.get('circle_distortion', {}).get('ros__parameters', {}).get('V', {})],
+            parameters=[{'robot': robot} + filter_yaml_content.get('circle_distortion', {}).get('ros__parameters', {})],
         ))
         Nodes.append(Node(
             package='crazyflie',

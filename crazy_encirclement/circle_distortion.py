@@ -45,6 +45,7 @@ class Circle_distortion(Node):
         self.declare_parameter('P', [0.0001, 0.0001, 0.25, 0.0001])
         self.declare_parameter('Q', [0.0, 0.0, 0.001, 0.0001])
         self.declare_parameter('V', [0.1, 0.1, 0.1])
+        self.declare_parameter('predict_hz', 50.0)
         self.declare_parameter('update_hz', 10.0)
         self.declare_parameter('embedding_fn_name', 'modelB')
 
@@ -52,25 +53,24 @@ class Circle_distortion(Node):
         P_list = self.get_parameter('P').value
         Q_list = self.get_parameter('Q').value
         V_list = self.get_parameter('V').value
-        update_hz = self.get_parameter('update_hz').value
-        embedding_fn_name = self.get_parameter('embedding_fn_name').value
+        self.predict_hz = self.get_parameter('predict_hz').value
+        self.update_hz  = self.get_parameter('update_hz').value
+        self.embedding_fn_name = self.get_parameter('embedding_fn_name').value
 
-        self.initial_phase = (2*np.pi)/self.n_agents + np.random.normal(0, 0.1)
-        filter_params = {
+        self.filter_params = {
             'P': P_list,
             'Q': Q_list,
             'V': V_list,
             'radius_guess': self.r + np.random.normal(0, 0.15),
-            'theta_guess': self.initial_phase,
+            'phase_guess': (2*np.pi)/self.n_agents + np.random.normal(0, 0.1),
         }
 
-        # Create filter instance
-        self.filter = FilterGPS(self.robot, embedding_fn_name, filter_params, self)
-  
         # Reboot client
         self.reboot_client = self.create_client(Empty, self.robot + '/reboot')
 
         # Flags and variables
+        self.hover_height = 0.9  # meters
+
         self.order = []
         self.has_initial_pose = False
         self.has_final = False
@@ -78,14 +78,14 @@ class Circle_distortion(Node):
         self.has_hovered = False
         self.has_landed = False
         self.land_flag = False
-        self.encircle_flag = False
+        # self.encircle_flag = False
         self.has_order = False
         self.has_phase_follower = False
         self.has_phase_leader = False
         self.final_pose = np.zeros(3)
         self.current_pos = np.zeros(3)
         self.initial_pose = np.zeros(3)
-        self.hover_height = 0.9
+        
         self.leader = None
         self.follower = None
         self.Rot_des = np.eye(3)
@@ -94,17 +94,17 @@ class Circle_distortion(Node):
 
         self.i_landing = 0
         self.i_takeoff = 0
-        self.get_logger().info(f"Number of agents: {self.n_agents}")
-        time.sleep(3.0) #sleep to ensure the robot filter converges
+        # self.get_logger().info(f"Number of agents: {self.n_agents}")
+        time.sleep(3.0)  # sleep to ensure the robot filter converges
 
         self.phases = np.zeros(self.n_agents)
-
-        self.phi_cur = Float32()
-        self.phase_pub = self.create_publisher(Float32,'/'+ self.robot + '/phase', 1)
+        # self.phi_cur = Float32()
+        # self.phase_pub = self.create_publisher(Float32,'/'+ self.robot + '/phase', 1)
 
         self.state = 0
         # 0-take-off, 1-hover, 2-encirclement, 3-landing
 
+        # Subscribers
         self.create_subscription(
             Bool,
             '/landing',
@@ -115,22 +115,31 @@ class Circle_distortion(Node):
             '/encircle',
             self._encircle_callback,
             10)
-        self.create_subscription(
-            PoseStamped, "/" + self.robot + "/pose",
-            self._poses_changed,
-            10
-        )
-
+        
+        # Subscription to the order of agents
         self.create_subscription(
             StringArray, '/agents_order',
             self._order_callback,
             10)
+        
+        # Subscription to Vicon positions of the robot that are coming from the gps node
+        self.create_subscription(
+            Position, "/" + self.robot + "/vicon_position",
+            self._poses_changed,
+            10
+        )        
 
+        # Wait until order is received
         while (not self.has_order):
             rclpy.spin_once(self, timeout_sec=0.1)
 
-        self.create_subscription(Float32, '/'+ self.leader + '/phase', self._phase_callback_leader, 1)
-        self.create_subscription(Float32, '/'+ self.follower + '/phase', self._phase_callback_follower, 1)
+        # Create filter instance
+        self.filter = FilterGPS(self.robot, self.embedding_fn_name, self.filter_params, self)
+
+        # Create subscribers for the other agents' filtered phases
+        self.create_subscription(Float32, '/' + self.leader + '/filtered/phase', self._phase_callback_leader, 1)
+        self.create_subscription(Float32, '/' + self.follower + '/filtered/phase', self._phase_callback_follower, 1)
+        
     
         # while (self.phases[0] == 0):
         #     self.phase_pub.publish(self.phi_cur)
@@ -140,7 +149,7 @@ class Circle_distortion(Node):
         #     self.phase_pub.publish(self.phi_cur)
         #     rclpy.spin_once(self, timeout_sec=0.1)
 
-        self.info(f"agents phases: {self.phases}")
+        # self.info(f"agents phases: {self.phases}")
         self.wd = Float32()
         self.phi_diff = Float32()
         
@@ -172,6 +181,7 @@ class Circle_distortion(Node):
                     unit_k = np.array([np.cos(phi_k), np.sin(phi_k), 0])
                     self.phi_diff.data = np.arccos(np.dot(unit_i,unit_k))
                     self.publish_phi_diff.publish(self.phi_diff)
+
             elif self.state == 1:
                 self.hover() 
             
@@ -207,12 +217,10 @@ class Circle_distortion(Node):
             #self.publishers[i].publish(msg)
     
     def _poses_changed(self, msg):
+        """ Topic update callback to the motion capture lib's
+            poses topic to send through the external position
+            to the crazyflie 
         """
-        Topic update callback to the motion capture lib's
-           poses topic to send through the external position
-           to the crazyflie 
-        """
-
         if not self.has_initial_pose:      
             self.initial_pose[0] = msg.pose.position.x
             self.initial_pose[1] = msg.pose.position.y
@@ -222,13 +230,11 @@ class Circle_distortion(Node):
             self.has_initial_pose = True    
             
         elif not self.land_flag :
-
             self.current_pos[0] = msg.pose.position.x
             self.current_pos[1] = msg.pose.position.y
             self.current_pos[2] = msg.pose.position.z
 
         elif self.has_final == False and self.land_flag == True:
-            
             self.final_pose = np.zeros(3)
             self.info("Landing...")
             self.final_pose[0] = msg.pose.position.x
@@ -249,7 +255,7 @@ class Circle_distortion(Node):
 
     def _order_callback(self, msg):
         if not self.has_order:
-            self.get_logger().info(f"Phase received: {msg.data}")
+            self.info(f"Phase received: {msg.data}")
             order = msg.data
             for robot in order:
                 if robot == self.robot:
@@ -264,7 +270,7 @@ class Circle_distortion(Node):
                         self.leader = order[i-1]
                         self.follower = order[i+1]
             self.has_order = True
-            self.get_logger().info(f"Leader: {self.leader}, Follower: {self.follower}")
+            self.info(f"Leader: {self.leader}, Follower: {self.follower}")
 
     def takeoff(self):
         self.send_position(self.r_takeoff[:,self.i_takeoff])
@@ -298,14 +304,17 @@ class Circle_distortion(Node):
         self.state = 3
 
     def _encircle_callback(self, msg):
-        self.encircle_flag = msg.data
+        ''' Callback function to start encirclement when the /encircle topic is received. '''
+
+        # self.encircle_flag = msg.data
         self.state = 2
 
     def hover(self):
-
         msg = Position()
-        msg.x = self.r*np.cos(self.initial_phase)
-        msg.y = self.r*np.sin(self.initial_phase)
+        radius = self.filter.radius
+        phase = self.filter.get_phase(self.filter.Rc)
+        msg.x = radius * np.cos(phase)
+        msg.y = radius * np.sin(phase)
         msg.z = self.hover_height
         self.position_pub.publish(msg)
 
