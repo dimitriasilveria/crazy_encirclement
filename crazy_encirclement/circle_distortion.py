@@ -63,6 +63,7 @@ class Circle_distortion(Node):
         self.i_landing = 0
         self.i_takeoff = 0
         self.get_logger().info(f"Number of agents: {self.n_agents}")
+        time.sleep(3.0) #sleep to ensure the robot filter converges
 
         self.phases = np.zeros(self.n_agents)
 
@@ -115,9 +116,6 @@ class Circle_distortion(Node):
 
         self.embedding = Embedding(self.r, self.phi_dot,self.k_phi, self.n_agents,self.initial_pose,self.hover_height,self.timer_period,self.phase_pub)
 
-        self.landing_traj(4)
-        self.takeoff_traj(1)
-
         input("Press Enter to takeoff")
 
         self.timer = self.create_timer(self.timer_period, self.timer_callback)
@@ -128,10 +126,11 @@ class Circle_distortion(Node):
             if self.state == 0:
                 if self.has_initial_pose:
                     self.phi_cur.data = float(self.initial_phase)
+                    self.phases[1] = self.initial_phase
                     self.phase_pub.publish(self.phi_cur)
                     self.takeoff()
                     phi_k = self.phases[0]
-                    phi_i = self.phases[1]
+                    phi_i = self.initial_phase
                     unit_i = np.array([np.cos(phi_i), np.sin(phi_i), 0])
                     unit_k = np.array([np.cos(phi_k), np.sin(phi_k), 0])
                     self.phi_diff.data = np.arccos(np.dot(unit_i,unit_k))
@@ -139,15 +138,16 @@ class Circle_distortion(Node):
             elif self.state == 1:
                 self.hover() 
             
-            elif self.state = 2: 
-                if self.has_phase_follower and self.has_phase_leader
+            elif self.state == 2: 
+                if self.has_phase_follower and self.has_phase_leader:
                     phi, target_r, wd, phi_diff = self.embedding.targets(self.current_pos,self.phases)
                     self.phi_diff.data = phi_diff
                     self.publish_phi_diff.publish(self.phi_diff)
-                    self.phi_cur.data = float(phi_i)
+                    self.phi_cur.data = float(phi)
                     self.phase_pub.publish(self.phi_cur)
                     self.wd.data = wd
                     self.publisher_w.publish(self.wd)
+                    self.target_r = target_r
                     self.send_position(self.target_r)
             
             elif self.state == 3:
@@ -181,6 +181,7 @@ class Circle_distortion(Node):
             self.initial_pose[1] = msg.pose.position.y
             self.initial_pose[2] = msg.pose.position.z   
             self.initial_phase = np.mod(np.arctan2(self.initial_pose[1], self.initial_pose[0]),2*np.pi)   
+            self.takeoff_traj(4)
             self.has_initial_pose = True    
             
         elif not self.land_flag :
@@ -193,13 +194,10 @@ class Circle_distortion(Node):
             
             self.final_pose = np.zeros(3)
             self.info("Landing...")
-
-
             self.final_pose[0] = msg.pose.position.x
             self.final_pose[1] = msg.pose.position.y
             self.final_pose[2] = msg.pose.position.z
-            self.r_landing[0,:] += self.final_pose[0]*np.ones(len(self.t_landing))
-            self.r_landing[1,:] += self.final_pose[1]*np.ones(len(self.t_landing))
+            self.landing_traj(2)
             self.has_final = True
 
     def _phase_callback_leader(self, msg):
@@ -254,6 +252,8 @@ class Circle_distortion(Node):
         self.t_landing = np.arange(t_max,0.1,-self.timer_period)
         self.i_landing = 0
         self.r_landing = np.zeros((3,len(self.t_landing)))
+        self.r_landing[0,:] += self.final_pose[0]*np.ones(len(self.t_landing))
+        self.r_landing[1,:] += self.final_pose[1]*np.ones(len(self.t_landing))
         self.r_landing[2,:] = self.hover_height*(self.t_landing/t_max)
     
     def _landing_callback(self, msg):
