@@ -166,8 +166,7 @@ class Circle_distortion(Node):
                     self.phase_pub.publish(self.phi_cur)
                     self.wd.data = wd
                     self.publisher_w.publish(self.wd)
-                    self.target_r = target_r
-                    self.send_position(self.target_r)
+                    self.send_position(target_r)
             
             elif self.state == 3:
                 if self.has_final:
@@ -288,7 +287,7 @@ class Circle_distortion(Node):
         self.state = 2
 
     def hover(self):
-
+        self.phase_pub.publish(self.phi_cur)
         msg = Position()
         msg.x = self.initial_pose[0]
         msg.y = self.initial_pose[1]
